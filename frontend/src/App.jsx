@@ -20,6 +20,10 @@ import StudentGrades from './pages/student/Grades'
 import StudentPayments from './pages/student/Payments'
 import StudentAttendance from './pages/student/Attendance'
 import StudentAssignments from './pages/student/Assignments'
+import StudentExams from './pages/student/Exams'
+import StudentHostel from './pages/student/Hostel'
+import StudentLibrary from './pages/student/Library'
+import StudentThesis from './pages/student/Thesis'
 
 // Applicant pages
 import ApplicantDashboard from './pages/applicant/Dashboard'
@@ -59,6 +63,7 @@ import SuperAdminDashboard from './pages/super_admin/Dashboard'
 import AcademicStructure from './pages/super_admin/AcademicStructure'
 import Sessions from './pages/super_admin/Sessions'
 import AdminCourses from './pages/super_admin/Courses'
+import AdminUsers from './pages/super_admin/Users'
 
 // Alumni pages
 import AlumniDashboard from './pages/alumni/Dashboard'
@@ -88,6 +93,10 @@ export default function App() {
               <Route path="payments"    element={<StudentPayments />} />
               <Route path="attendance"  element={<StudentAttendance />} />
               <Route path="assignments" element={<StudentAssignments />} />
+              <Route path="exams"       element={<StudentExams />} />
+              <Route path="hostel"      element={<StudentHostel />} />
+              <Route path="library"     element={<StudentLibrary />} />
+              <Route path="thesis"      element={<StudentThesis />} />
             </Route>
           </Route>
 
@@ -162,6 +171,7 @@ export default function App() {
               <Route path="structure" element={<AcademicStructure />} />
               <Route path="sessions"  element={<Sessions />} />
               <Route path="courses"   element={<AdminCourses />} />
+              <Route path="users"     element={<AdminUsers />} />
             </Route>
           </Route>
 

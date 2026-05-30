@@ -13,6 +13,9 @@ import {
   Calendar,
   ScrollText,
   List,
+  Library,
+  Home,
+  Award,
 } from 'lucide-react'
 
 export const NAV = {
@@ -25,6 +28,10 @@ export const NAV = {
     { label: 'Payments',    to: 'payments',    icon: CreditCard },
     { label: 'Attendance',  to: 'attendance',  icon: CheckSquare },
     { label: 'Assignments', to: 'assignments', icon: ClipboardList },
+    { label: 'Exams',       to: 'exams',       icon: FileText },
+    { label: 'Hostel',      to: 'hostel',      icon: Home },
+    { label: 'Library',     to: 'library',     icon: Library },
+    { label: 'Thesis',      to: 'thesis',      icon: Award },
   ],
 
   applicant: [
