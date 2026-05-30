@@ -1,14 +1,19 @@
 """
 Shared fixtures for all backend tests.
 
-Requires a test PostgreSQL database. Create it once:
+Requires a test PostgreSQL database. Create it once with:
     CREATE DATABASE university_db_test;
 
-The test suite creates all tables on session start and drops them on session end.
-Each test gets a fresh DB session that is rolled back after the test.
+Strategy:
+- setup_database (session, sync): creates tables once with asyncio.run()
+- db (function, async): fresh AsyncSession per test
+- clean_tables (function, async, autouse): truncates all tables after every test
+- client (function, async): AsyncClient wired to test db
 """
+import asyncio
 import pytest
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -35,33 +40,54 @@ TestSession = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSes
 
 
 # ---------------------------------------------------------------------------
-# Session-scoped: create / drop tables once per test run
+# Session-scoped SYNC fixture — creates/drops tables once per run.
+# Using asyncio.run() avoids event-loop scope conflicts with async fixtures.
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-async def setup_database():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+def setup_database():
+    async def _create():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+
+    async def _drop():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+
+    asyncio.run(_create())
     yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    asyncio.run(_drop())
 
 
 # ---------------------------------------------------------------------------
-# Function-scoped DB session — rolls back after every test
+# Function-scoped async session
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def db():
     async with TestSession() as session:
         yield session
-        await session.rollback()
 
 
 # ---------------------------------------------------------------------------
-# HTTP client wired to the test DB
+# Autouse: truncate all tables after each test (fast, avoids ordering issues)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+async def clean_tables():
+    yield
+    async with TestSession() as session:
+        table_names = ", ".join(
+            f'"{t.name}"' for t in Base.metadata.sorted_tables
+        )
+        await session.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
+        await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# HTTP client wired to the test DB session
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -76,7 +102,7 @@ async def client(db: AsyncSession):
 
 
 # ---------------------------------------------------------------------------
-# Helper: create a user directly in DB
+# Helpers (importable by test files)
 # ---------------------------------------------------------------------------
 
 async def make_user(db: AsyncSession, email: str, username: str, role: UserRole) -> User:
@@ -94,7 +120,11 @@ async def make_user(db: AsyncSession, email: str, username: str, role: UserRole)
 
 
 def token_for(user: User) -> str:
-    return create_access_token({"sub": str(user.id), "role": user.role, "username": user.username})
+    return create_access_token({
+        "sub": str(user.id),
+        "role": user.role,
+        "username": user.username,
+    })
 
 
 def auth(user: User) -> dict:
@@ -135,7 +165,7 @@ async def student_user(db):
 
 
 # ---------------------------------------------------------------------------
-# Academic structure fixtures (function-scoped — created fresh each test)
+# Academic structure fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -247,10 +277,10 @@ async def student(db, student_user, program):
 async def grade_scale(db):
     scales = [
         GradeScale(min_score=70, max_score=100, grade="A", grade_points=5.0, passed=True),
-        GradeScale(min_score=60, max_score=69, grade="B", grade_points=4.0, passed=True),
-        GradeScale(min_score=50, max_score=59, grade="C", grade_points=3.0, passed=True),
-        GradeScale(min_score=45, max_score=49, grade="D", grade_points=2.0, passed=True),
-        GradeScale(min_score=0,  max_score=44, grade="F", grade_points=0.0, passed=False),
+        GradeScale(min_score=60, max_score=69,  grade="B", grade_points=4.0, passed=True),
+        GradeScale(min_score=50, max_score=59,  grade="C", grade_points=3.0, passed=True),
+        GradeScale(min_score=45, max_score=49,  grade="D", grade_points=2.0, passed=True),
+        GradeScale(min_score=0,  max_score=44,  grade="F", grade_points=0.0, passed=False),
     ]
     for scale in scales:
         db.add(scale)

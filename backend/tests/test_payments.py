@@ -200,8 +200,9 @@ async def test_initialize_payment(client, db, student_user, student, semester):
         "reference": "ref123",
     }
 
+    # Patch the name as it was imported into the router module
     with patch(
-        "app.services.payment_service.initialize_transaction",
+        "app.routers.payments.initialize_transaction",
         new_callable=AsyncMock,
         return_value=mock_result,
     ):

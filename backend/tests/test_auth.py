@@ -62,9 +62,10 @@ async def test_logout(client, db):
 
 @pytest.mark.asyncio
 async def test_protected_endpoint_no_token(client, db):
-    # Students list requires authentication; no Authorization header sent
+    # Students list requires authentication; no Authorization header sent.
+    # FastAPI's HTTPBearer returns 403 (not 401) when the header is absent.
     response = await client.get("/api/v1/students")
-    assert response.status_code == 401
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio

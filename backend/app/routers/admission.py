@@ -143,7 +143,7 @@ async def enroll_accepted_applicant(
     seq = (count_result.scalar() or 0) + 1
     matric_number = f"{program.code.upper()}-{datetime.now().year}-{seq:04d}"
 
-    # 5. Create User account for the new student
+    # 5. Promote the applicant's existing User to student role
     applicant_user = await db.get(User, application.user_id)
     if not applicant_user:
         raise HTTPException(
@@ -151,26 +151,20 @@ async def enroll_accepted_applicant(
             detail="Applicant user not found",
         )
 
-    student_user = User(
-        email=applicant_user.email,
-        username=matric_number,
-        password_hash=hash_password(matric_number),  # temporary password = matric number
-        role=UserRole.STUDENT,
-        is_active=True,
-    )
-    db.add(student_user)
-    await db.flush()  # populate student_user.id before referencing it
+    applicant_user.role = UserRole.STUDENT
+    applicant_user.username = matric_number
+    await db.flush()
 
-    # 6. Create Student record
+    # 6. Create Student record linked to the promoted user
     student = Student(
-        user_id=student_user.id,
+        user_id=applicant_user.id,
         matric_number=matric_number,
         program_id=application.program_id,
         level=100,
         status=StudentStatus.ACTIVE,
     )
     db.add(student)
-    await db.flush()  # populate student.id
+    await db.flush()
 
     # 7. Mark application as enrolled
     application.status = ApplicationStatus.ENROLLED

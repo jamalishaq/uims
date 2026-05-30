@@ -27,7 +27,7 @@ async def test_list_users_as_admin(client, admin, student_user):
 @pytest.mark.asyncio
 async def test_list_users_filter_by_role(client, admin, student_user):
     response = await client.get(
-        f"/api/v1/users?role={UserRole.STUDENT}",
+        f"/api/v1/users?role={UserRole.STUDENT.value}",
         headers=auth(admin),
     )
     assert response.status_code == 200
