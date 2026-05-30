@@ -61,6 +61,41 @@ async def my_enrollments(
     ]
 
 
+@router.get("/section/{section_id}")
+async def section_enrollments(
+    section_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("lecturer", "hod", "registrar", "super_admin")),
+):
+    if user.role == "lecturer":
+        section = await db.get(CourseSection, section_id)
+        if not section or section.lecturer_id != user.id:
+            raise HTTPException(status_code=403, detail="Not your section")
+    result = await db.execute(
+        select(CourseEnrollment)
+        .where(
+            CourseEnrollment.section_id == section_id,
+            CourseEnrollment.status == EnrollmentStatus.REGISTERED,
+        )
+        .options(selectinload(CourseEnrollment.student).selectinload(Student.user))
+    )
+    enrollments = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "student_id": e.student_id,
+            "matric_number": e.student.matric_number,
+            "username": e.student.user.username,
+            "ca_score": e.ca_score,
+            "exam_score": e.exam_score,
+            "total_score": e.total_score,
+            "grade": e.grade,
+            "passed": e.passed,
+        }
+        for e in enrollments
+    ]
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def enroll(
     body: EnrollRequest,

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import useTitle from '../../hooks/useTitle'
-import useAuth from '../../hooks/useAuth'
 import PageHeader from '../../components/PageHeader'
 import Card, { CardHeader, CardBody } from '../../components/ui/Card'
 import Table, { createColumnHelper } from '../../components/ui/Table'
@@ -8,6 +7,7 @@ import Badge from '../../components/ui/Badge'
 import Select from '../../components/ui/Select'
 import { useSections } from '../../features/courses/queries'
 import { useAttendanceSummary } from '../../features/attendance/queries'
+import { useMyDepartment } from '../../features/academic/queries'
 
 const col = createColumnHelper()
 
@@ -46,11 +46,12 @@ const columns = [
 
 export default function HODAttendance() {
   useTitle('Attendance Oversight')
-  const { department_id } = useAuth()
 
-  // Fetch sections filtered to HOD's department
+  const { data: myDept, isLoading: deptLoading } = useMyDepartment()
+
+  // Fetch sections filtered to HOD's department — only once department is known
   const { data: sections = [], isLoading: sectionsLoading } = useSections(
-    department_id ? { department_id } : undefined
+    myDept?.id ? { department_id: myDept.id } : undefined
   )
 
   const [sectionId, setSectionId] = useState('')
@@ -68,6 +69,21 @@ export default function HODAttendance() {
       })),
     [sections]
   )
+
+  if (deptLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Attendance Oversight" subtitle="Review attendance summaries by section" />
+        <Card>
+          <CardBody>
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">
+              Loading department…
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

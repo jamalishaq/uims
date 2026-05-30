@@ -49,6 +49,6 @@ export const useAddSection = () => {
 export const useSectionEnrollments = (sectionId) =>
   useQuery({
     queryKey: ['sections', sectionId, 'enrollments'],
-    queryFn: () => api.get(`/courses/sections/${sectionId}/enrollments`).then((r) => r.data),
+    queryFn: () => api.get(`/enrollment/section/${sectionId}`).then((r) => r.data),
     enabled: !!sectionId,
   })

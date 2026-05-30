@@ -17,6 +17,18 @@ from app.schemas.academic import (
 router = APIRouter()
 
 
+@router.get("/my-department", response_model=DepartmentOut)
+async def my_department(
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_role("hod")),
+):
+    result = await db.execute(select(Department).where(Department.hod_id == user.id))
+    dept = result.scalar_one_or_none()
+    if not dept:
+        raise HTTPException(status_code=404, detail="No department assigned to this HOD")
+    return dept
+
+
 @router.get("/faculties", response_model=list[FacultyOut])
 async def list_faculties(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Faculty))

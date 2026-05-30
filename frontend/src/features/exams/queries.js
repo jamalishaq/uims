@@ -7,6 +7,12 @@ export const useExamTimetable = (params) =>
     queryFn: () => api.get('/exams/timetable', { params }).then((r) => r.data),
   })
 
+export const useExamSlots = (params) =>
+  useQuery({
+    queryKey: ['exams', 'slots', params],
+    queryFn: () => api.get('/exams', { params }).then((r) => r.data),
+  })
+
 export const useAddExamSlot = () => {
   const qc = useQueryClient()
   return useMutation({

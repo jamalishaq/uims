@@ -14,6 +14,76 @@ from app.services.grade_service import compute_grade, recalculate_cgpa
 router = APIRouter()
 
 
+@router.get("/me")
+async def my_grades(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("student")),
+):
+    result = await db.execute(select(Student).where(Student.user_id == user.id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(404, "Student record not found")
+    result = await db.execute(
+        select(CourseEnrollment)
+        .where(CourseEnrollment.student_id == student.id)
+        .options(selectinload(CourseEnrollment.section).selectinload(CourseSection.course))
+        .order_by(CourseEnrollment.created_at)
+    )
+    enrollments = result.scalars().all()
+    return {
+        "student_id": student.id,
+        "cgpa": student.cgpa,
+        "total_credits_passed": student.total_credits_passed,
+        "courses": [
+            {
+                "code": e.section.course.code,
+                "title": e.section.course.title,
+                "credit_hours": e.section.course.credit_hours,
+                "ca": e.ca_score,
+                "exam": e.exam_score,
+                "total": e.total_score,
+                "grade": e.grade,
+                "grade_points": e.grade_points,
+                "passed": e.passed,
+            }
+            for e in enrollments
+        ],
+    }
+
+
+@router.get("/section/{section_id}")
+async def section_grades(
+    section_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("lecturer", "hod", "registrar", "super_admin")),
+):
+    if user.role == "lecturer":
+        section = await db.get(CourseSection, section_id)
+        if not section or section.lecturer_id != user.id:
+            raise HTTPException(403, "Not your section")
+    result = await db.execute(
+        select(CourseEnrollment)
+        .where(CourseEnrollment.section_id == section_id)
+        .options(selectinload(CourseEnrollment.student).selectinload(Student.user))
+    )
+    enrollments = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "student_id": e.student_id,
+            "matric_number": e.student.matric_number,
+            "username": e.student.user.username,
+            "ca_score": e.ca_score,
+            "exam_score": e.exam_score,
+            "total_score": e.total_score,
+            "grade": e.grade,
+            "grade_points": e.grade_points,
+            "passed": e.passed,
+        }
+        for e in enrollments
+    ]
+
+
 @router.post("/{enrollment_id}")
 async def submit_grade(
     enrollment_id: int,

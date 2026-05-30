@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.models import exam  # noqa: F401 — registers ExamSlot with Base metadata
 from app.routers import (
-    auth, students, staff, academic, courses,
+    auth, users, students, staff, academic, courses,
     enrollment, attendance, assignments, grades,
     exams, payments, hostel, library, thesis,
     admission, notifications, reports,
@@ -38,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router,          prefix="/api/v1/auth",          tags=["Auth"])
+app.include_router(users.router,         prefix="/api/v1/users",         tags=["Users"])
 app.include_router(students.router,      prefix="/api/v1/students",      tags=["Students"])
 app.include_router(staff.router,         prefix="/api/v1/staff",         tags=["Staff"])
 app.include_router(academic.router,      prefix="/api/v1/academic",      tags=["Academic Structure"])

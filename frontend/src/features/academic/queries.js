@@ -63,3 +63,10 @@ export const useAddSemester = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sessions'] }),
   })
 }
+
+// --- HOD ---
+export const useMyDepartment = () =>
+  useQuery({
+    queryKey: ['my-department'],
+    queryFn: () => api.get('/academic/my-department').then((r) => r.data),
+  })

@@ -7,6 +7,22 @@ export const useHostels = () =>
     queryFn: () => api.get('/hostel').then((r) => r.data),
   })
 
+export const useMyHostelAllocation = () =>
+  useQuery({
+    queryKey: ['hostel', 'my-allocation'],
+    queryFn: () => api.get('/hostel/my-allocation').then((r) => r.data),
+    retry: (failureCount, err) => {
+      if (err?.response?.status === 404) return false
+      return failureCount < 2
+    },
+  })
+
+export const useAvailableRooms = () =>
+  useQuery({
+    queryKey: ['hostel', 'rooms', 'available'],
+    queryFn: () => api.get('/hostel/rooms', { params: { available_only: true } }).then((r) => r.data),
+  })
+
 export const useApplyHostel = () => {
   const qc = useQueryClient()
   return useMutation({

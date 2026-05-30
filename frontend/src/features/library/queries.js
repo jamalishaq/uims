@@ -7,6 +7,12 @@ export const useBooks = (params) =>
     queryFn: () => api.get('/library/books', { params }).then((r) => r.data),
   })
 
+export const useMyBorrowings = () =>
+  useQuery({
+    queryKey: ['library', 'my-borrowings'],
+    queryFn: () => api.get('/library/my-borrowings').then((r) => r.data),
+  })
+
 export const useBorrowBook = () => {
   const qc = useQueryClient()
   return useMutation({

@@ -7,6 +7,16 @@ export const useThesis = () =>
     queryFn: () => api.get('/thesis').then((r) => r.data),
   })
 
+export const useMyThesis = () =>
+  useQuery({
+    queryKey: ['thesis', 'my'],
+    queryFn: () => api.get('/thesis/my').then((r) => r.data),
+    retry: (failureCount, err) => {
+      if (err?.response?.status === 404) return false
+      return failureCount < 2
+    },
+  })
+
 export const useRegisterThesis = () => {
   const qc = useQueryClient()
   return useMutation({

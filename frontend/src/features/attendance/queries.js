@@ -10,7 +10,7 @@ export const useMyAttendance = () =>
 export const useAttendanceSummary = (sectionId) =>
   useQuery({
     queryKey: ['attendance', 'summary', sectionId],
-    queryFn: () => api.get(`/attendance/sections/${sectionId}/summary`).then((r) => r.data),
+    queryFn: () => api.get(`/attendance/${sectionId}/summary`).then((r) => r.data),
     enabled: !!sectionId,
   })
 
@@ -18,7 +18,7 @@ export const useMarkAttendance = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ sectionId, ...data }) =>
-      api.post(`/attendance/sections/${sectionId}`, data).then((r) => r.data),
+      api.post(`/attendance/${sectionId}`, data).then((r) => r.data),
     onSuccess: (_, { sectionId }) =>
       qc.invalidateQueries({ queryKey: ['attendance', 'summary', sectionId] }),
   })
