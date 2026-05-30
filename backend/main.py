@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.models import exam  # noqa: F401 — registers ExamSlot with Base metadata
 from app.routers import (
     auth, students, staff, academic, courses,
     enrollment, attendance, assignments, grades,
