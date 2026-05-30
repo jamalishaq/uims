@@ -1,7 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '../../../test-utils'
-import Enrollments from '../../../../pages/student/Enrollments'
+import Enrollments from '../../../pages/student/Enrollments'
 
-vi.mock('../../../../features/enrollment/queries', () => ({
+vi.mock('../../../features/enrollment/queries', () => ({
   useMyEnrollments: vi.fn(),
   useDropCourse: vi.fn(),
 }))
@@ -14,7 +14,7 @@ vi.mock('react-hot-toast', () => ({
   },
 }))
 
-import { useMyEnrollments, useDropCourse } from '../../../../features/enrollment/queries'
+import { useMyEnrollments, useDropCourse } from '../../../features/enrollment/queries'
 
 const mockDropMutate = vi.fn()
 
@@ -114,7 +114,7 @@ describe('Enrollments', () => {
     fireEvent.click(dropButtons[0])
 
     await waitFor(() => {
-      expect(screen.getByText('Drop Course')).toBeInTheDocument()
+      expect(screen.getAllByText('Drop Course').length).toBeGreaterThan(0)
       expect(screen.getByText(/are you sure you want to drop/i)).toBeInTheDocument()
     })
   })

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '../../test-utils'
-import Table, { createColumnHelper } from '../../../components/ui/Table'
+import Table, { createColumnHelper } from '../../components/ui/Table'
 
 const col = createColumnHelper()
 

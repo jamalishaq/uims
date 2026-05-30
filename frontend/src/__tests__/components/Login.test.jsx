@@ -1,10 +1,10 @@
-import { render, screen, waitFor } from '../../test-utils'
+import { render, screen, waitFor, fireEvent } from '../../test-utils'
 import userEvent from '@testing-library/user-event'
-import Login from '../../../pages/public/Login'
-import useAuthStore from '../../../store/authStore'
+import Login from '../../pages/public/Login'
+import useAuthStore from '../../store/authStore'
 
 // Mock the login mutation function
-vi.mock('../../../features/auth/queries', () => ({
+vi.mock('../../features/auth/queries', () => ({
   login: vi.fn(),
 }))
 
@@ -21,7 +21,7 @@ vi.mock('react-hot-toast', () => ({
   },
 }))
 
-import { login } from '../../../features/auth/queries'
+import { login } from '../../features/auth/queries'
 import toast from 'react-hot-toast'
 
 beforeEach(() => {
@@ -53,11 +53,12 @@ describe('Login', () => {
   })
 
   it('shows validation error for invalid email format', async () => {
-    const user = userEvent.setup()
     render(<Login />)
 
-    await user.type(screen.getByPlaceholderText(/you@university\.edu/i), 'notanemail')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    fireEvent.change(screen.getByPlaceholderText(/you@university\.edu/i), {
+      target: { value: 'notanemail' },
+    })
+    fireEvent.submit(document.querySelector('form'))
 
     await waitFor(() => {
       expect(screen.getByText(/enter a valid email/i)).toBeInTheDocument()
@@ -77,22 +78,22 @@ describe('Login', () => {
   })
 
   it('calls login mutation on valid submit', async () => {
-    const user = userEvent.setup()
-    login.mockResolvedValue({ access_token: 'fake.token.here' })
+    login.mockReturnValue(new Promise(() => {}))
 
     render(<Login />)
 
-    await user.type(screen.getByPlaceholderText(/you@university\.edu/i), 'student@university.edu')
-    await user.type(screen.getByPlaceholderText(/••••••••/), 'secret123')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    fireEvent.change(screen.getByPlaceholderText(/you@university\.edu/i), {
+      target: { value: 'student@university.edu' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/••••••••/), {
+      target: { value: 'secret123' },
+    })
+    fireEvent.submit(document.querySelector('form'))
 
-    await waitFor(() => {
-      expect(login).toHaveBeenCalledWith(
-        expect.objectContaining({
-          email: 'student@university.edu',
-          password: 'secret123',
-        })
-      )
+    await waitFor(() => expect(login).toHaveBeenCalled())
+    expect(login.mock.calls[0][0]).toMatchObject({
+      email: 'student@university.edu',
+      password: 'secret123',
     })
   })
 

@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { act } from 'react'
-import useAuth from '../../../hooks/useAuth'
-import useAuthStore from '../../../store/authStore'
+import useAuth from '../../hooks/useAuth'
+import useAuthStore from '../../store/authStore'
 
 vi.mock('jwt-decode', () => ({
   jwtDecode: vi.fn(),

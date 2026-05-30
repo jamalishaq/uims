@@ -1,17 +1,17 @@
 import { render, screen, waitFor } from '../../../test-utils'
 import { act } from 'react'
-import StudentDashboard from '../../../../pages/student/Dashboard'
-import useAuthStore from '../../../../store/authStore'
+import StudentDashboard from '../../../pages/student/Dashboard'
+import useAuthStore from '../../../store/authStore'
 
-vi.mock('../../../../features/enrollment/queries', () => ({
+vi.mock('../../../features/enrollment/queries', () => ({
   useMyEnrollments: vi.fn(),
 }))
 
-vi.mock('../../../../features/students/queries', () => ({
+vi.mock('../../../features/students/queries', () => ({
   useMyStudentRecord: vi.fn(),
 }))
 
-vi.mock('../../../../features/grades/queries', () => ({
+vi.mock('../../../features/grades/queries', () => ({
   useTranscript: vi.fn(),
 }))
 
@@ -19,9 +19,9 @@ vi.mock('jwt-decode', () => ({
   jwtDecode: vi.fn(),
 }))
 
-import { useMyEnrollments } from '../../../../features/enrollment/queries'
-import { useMyStudentRecord } from '../../../../features/students/queries'
-import { useTranscript } from '../../../../features/grades/queries'
+import { useMyEnrollments } from '../../../features/enrollment/queries'
+import { useMyStudentRecord } from '../../../features/students/queries'
+import { useTranscript } from '../../../features/grades/queries'
 import { jwtDecode } from 'jwt-decode'
 
 const makeToken = (payload) => {

@@ -33,5 +33,5 @@ export function render(ui, { route = '/', queryClient, ...options } = {}) {
   return rtlRender(ui, { wrapper: Wrapper, ...options })
 }
 
-// re-export everything from testing-library so tests only need one import
-export * from '@testing-library/react'
+// re-export testing-library utilities (render is the custom wrapped one above)
+export { screen, waitFor, fireEvent, act, within, renderHook, cleanup } from '@testing-library/react'
