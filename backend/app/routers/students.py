@@ -46,6 +46,31 @@ async def list_students(
     return PaginatedResponse(items=students, total=total, page=page, per_page=per_page, pages=pages)
 
 
+@router.get("/me")
+async def get_my_student_record(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("student")),
+):
+    result = await db.execute(
+        select(Student).where(Student.user_id == user.id).options(selectinload(Student.user))
+    )
+    student = result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
+    return {
+        "id": student.id,
+        "user_id": student.user_id,
+        "matric_number": student.matric_number,
+        "program_id": student.program_id,
+        "level": student.level,
+        "status": student.status,
+        "cgpa": student.cgpa,
+        "total_credits_passed": student.total_credits_passed,
+        "username": student.user.username,
+        "email": student.user.email,
+    }
+
+
 @router.get("/{student_id}")
 async def get_student(
     student_id: int,

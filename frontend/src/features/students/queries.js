@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 
+export const useMyStudentRecord = () =>
+  useQuery({
+    queryKey: ['students', 'me'],
+    queryFn: () => api.get('/students/me').then((r) => r.data),
+  })
+
 export const useStudents = (params) =>
   useQuery({
     queryKey: ['students', params],

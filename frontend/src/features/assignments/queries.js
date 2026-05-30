@@ -39,3 +39,10 @@ export const useGradeAssignment = () => {
     onSuccess: (_, { id }) => qc.invalidateQueries({ queryKey: ['assignments', id] }),
   })
 }
+
+export const useSubmissions = (assignmentId) =>
+  useQuery({
+    queryKey: ['assignments', assignmentId, 'submissions'],
+    queryFn: () => api.get(`/assignments/${assignmentId}/submissions`).then((r) => r.data),
+    enabled: !!assignmentId,
+  })

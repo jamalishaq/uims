@@ -9,8 +9,8 @@ export const useEnrollmentStats = (params) =>
 
 export const usePassFailRates = (params) =>
   useQuery({
-    queryKey: ['reports', 'pass-fail-rates', params],
-    queryFn: () => api.get('/reports/pass-fail-rates', { params }).then((r) => r.data),
+    queryKey: ['reports', 'pass-fail', params],
+    queryFn: () => api.get('/reports/pass-fail', { params }).then((r) => r.data),
   })
 
 export const useFeeCollection = (params) =>

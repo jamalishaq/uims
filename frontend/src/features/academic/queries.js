@@ -14,8 +14,11 @@ export const useAddFaculty = () => {
 }
 
 // --- Departments ---
-export const useDepartments = () =>
-  useQuery({ queryKey: ['departments'], queryFn: () => api.get('/academic/departments').then((r) => r.data) })
+export const useDepartments = (params) =>
+  useQuery({
+    queryKey: ['departments', params],
+    queryFn: () => api.get('/academic/departments', { params }).then((r) => r.data),
+  })
 
 export const useAddDepartment = () => {
   const qc = useQueryClient()
@@ -26,8 +29,11 @@ export const useAddDepartment = () => {
 }
 
 // --- Programs ---
-export const usePrograms = () =>
-  useQuery({ queryKey: ['programs'], queryFn: () => api.get('/academic/programs').then((r) => r.data) })
+export const usePrograms = (params) =>
+  useQuery({
+    queryKey: ['programs', params],
+    queryFn: () => api.get('/academic/programs', { params }).then((r) => r.data),
+  })
 
 export const useAddProgram = () => {
   const qc = useQueryClient()

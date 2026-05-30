@@ -22,3 +22,10 @@ export const useSubmitGrade = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['grades'] }),
   })
 }
+
+export const useSectionGrades = (sectionId) =>
+  useQuery({
+    queryKey: ['grades', 'section', sectionId],
+    queryFn: () => api.get(`/grades/sections/${sectionId}`).then((r) => r.data),
+    enabled: !!sectionId,
+  })

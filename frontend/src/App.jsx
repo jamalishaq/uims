@@ -14,30 +14,55 @@ import Unauthorized from './pages/public/Unauthorized'
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard'
+import StudentCourses from './pages/student/Courses'
+import StudentEnrollments from './pages/student/Enrollments'
+import StudentGrades from './pages/student/Grades'
+import StudentPayments from './pages/student/Payments'
+import StudentAttendance from './pages/student/Attendance'
+import StudentAssignments from './pages/student/Assignments'
 
 // Applicant pages
 import ApplicantDashboard from './pages/applicant/Dashboard'
+import ApplicationForm from './pages/applicant/ApplicationForm'
+import ApplicationStatus from './pages/applicant/ApplicationStatus'
 
 // Lecturer pages
 import LecturerDashboard from './pages/lecturer/Dashboard'
+import LecturerSections from './pages/lecturer/Sections'
+import LecturerAttendance from './pages/lecturer/Attendance'
+import LecturerAssignments from './pages/lecturer/Assignments'
+import LecturerGrades from './pages/lecturer/Grades'
 
 // HOD pages
 import HODDashboard from './pages/hod/Dashboard'
+import HODAttendance from './pages/hod/Attendance'
+import HODReports from './pages/hod/Reports'
 
 // Dean pages
 import DeanDashboard from './pages/dean/Dashboard'
+import DeanOverview from './pages/dean/Overview'
+import DeanReports from './pages/dean/Reports'
 
 // Registrar pages
 import RegistrarDashboard from './pages/registrar/Dashboard'
+import Applications from './pages/registrar/Applications'
+import Students from './pages/registrar/Students'
+import StudentDetail from './pages/registrar/StudentDetail'
 
 // Bursar pages
 import BursarDashboard from './pages/bursar/Dashboard'
+import BursarFees from './pages/bursar/Fees'
+import BursarPayments from './pages/bursar/Payments'
 
 // Super Admin pages
 import SuperAdminDashboard from './pages/super_admin/Dashboard'
+import AcademicStructure from './pages/super_admin/AcademicStructure'
+import Sessions from './pages/super_admin/Sessions'
+import AdminCourses from './pages/super_admin/Courses'
 
 // Alumni pages
 import AlumniDashboard from './pages/alumni/Dashboard'
+import AlumniTranscript from './pages/alumni/Transcript'
 
 export default function App() {
   return (
@@ -57,7 +82,12 @@ export default function App() {
             <Route path="student" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<StudentDashboard />} />
-              {/* TODO: courses, timetable, attendance, assignments, exams, grades, payments, library, hostel */}
+              <Route path="courses"     element={<StudentCourses />} />
+              <Route path="enrollments" element={<StudentEnrollments />} />
+              <Route path="grades"      element={<StudentGrades />} />
+              <Route path="payments"    element={<StudentPayments />} />
+              <Route path="attendance"  element={<StudentAttendance />} />
+              <Route path="assignments" element={<StudentAssignments />} />
             </Route>
           </Route>
 
@@ -65,8 +95,9 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.Applicant]} />}>
             <Route path="applicant" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<ApplicantDashboard />} />
-              {/* TODO: application */}
+              <Route path="dashboard" element={<ApplicantDashboard />} />
+              <Route path="apply"     element={<ApplicationForm />} />
+              <Route path="status"    element={<ApplicationStatus />} />
             </Route>
           </Route>
 
@@ -75,7 +106,10 @@ export default function App() {
             <Route path="lecturer" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<LecturerDashboard />} />
-              {/* TODO: courses, attendance, assignments, grades, timetable */}
+              <Route path="sections"    element={<LecturerSections />} />
+              <Route path="attendance"  element={<LecturerAttendance />} />
+              <Route path="assignments" element={<LecturerAssignments />} />
+              <Route path="grades"      element={<LecturerGrades />} />
             </Route>
           </Route>
 
@@ -83,8 +117,9 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.HOD]} />}>
             <Route path="hod" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<HODDashboard />} />
-              {/* TODO: courses, attendance, scores, staff, reports */}
+              <Route path="dashboard"  element={<HODDashboard />} />
+              <Route path="attendance" element={<HODAttendance />} />
+              <Route path="reports"    element={<HODReports />} />
             </Route>
           </Route>
 
@@ -92,8 +127,9 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.Dean]} />}>
             <Route path="dean" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<DeanDashboard />} />
-              {/* TODO: departments, scores, reports */}
+              <Route path="dashboard" element={<DeanDashboard />} />
+              <Route path="overview"  element={<DeanOverview />} />
+              <Route path="reports"   element={<DeanReports />} />
             </Route>
           </Route>
 
@@ -101,8 +137,10 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.Registrar]} />}>
             <Route path="registrar" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<RegistrarDashboard />} />
-              {/* TODO: applications, students, registration, calendar */}
+              <Route path="dashboard"        element={<RegistrarDashboard />} />
+              <Route path="applications"     element={<Applications />} />
+              <Route path="students"         element={<Students />} />
+              <Route path="students/:studentId" element={<StudentDetail />} />
             </Route>
           </Route>
 
@@ -110,8 +148,9 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.Bursar]} />}>
             <Route path="bursar" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<BursarDashboard />} />
-              {/* TODO: fees, payments, clearances, waivers */}
+              <Route path="dashboard" element={<BursarDashboard />} />
+              <Route path="fees"      element={<BursarFees />} />
+              <Route path="payments"  element={<BursarPayments />} />
             </Route>
           </Route>
 
@@ -119,8 +158,10 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.SuperAdmin]} />}>
             <Route path="admin" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<SuperAdminDashboard />} />
-              {/* TODO: structure, users, sessions, grading, settings */}
+              <Route path="dashboard" element={<SuperAdminDashboard />} />
+              <Route path="structure" element={<AcademicStructure />} />
+              <Route path="sessions"  element={<Sessions />} />
+              <Route path="courses"   element={<AdminCourses />} />
             </Route>
           </Route>
 
@@ -128,8 +169,8 @@ export default function App() {
           <Route element={<RequireAuth allowedRoles={[ROLES.Alumni]} />}>
             <Route path="alumni" element={<UserLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<AlumniDashboard />} />
-              {/* TODO: transcript, directory */}
+              <Route path="dashboard"  element={<AlumniDashboard />} />
+              <Route path="transcript" element={<AlumniTranscript />} />
             </Route>
           </Route>
 

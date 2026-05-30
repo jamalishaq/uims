@@ -13,6 +13,19 @@ export const useFeeSchedule = (params) =>
     queryFn: () => api.get('/payments/schedule', { params }).then((r) => r.data),
   })
 
+export const useCreateFeeSchedule = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data) => api.post('/payments/schedule', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fees', 'schedule'] }),
+  })
+}
+
+export const useGeneratePayments = () =>
+  useMutation({
+    mutationFn: (params) => api.post('/payments/generate', null, { params }).then((r) => r.data),
+  })
+
 export const useInitPayment = () =>
   useMutation({
     mutationFn: (data) => api.post('/payments/initialize', data).then((r) => r.data),

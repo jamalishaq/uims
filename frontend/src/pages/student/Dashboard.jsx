@@ -2,17 +2,37 @@ import useAuth from '../../hooks/useAuth'
 import useTitle from '../../hooks/useTitle'
 import Card, { CardBody } from '../../components/ui/Card'
 import PageHeader from '../../components/PageHeader'
-
-const stats = [
-  { label: 'Enrolled Courses',  value: '—' },
-  { label: 'Credit Hours',      value: '—' },
-  { label: 'Current GPA',       value: '—' },
-  { label: 'CGPA',              value: '—' },
-]
+import { useMyEnrollments } from '../../features/enrollment/queries'
+import { useMyStudentRecord } from '../../features/students/queries'
+import { useTranscript } from '../../features/grades/queries'
 
 export default function StudentDashboard() {
   useTitle('Dashboard')
   const { username } = useAuth()
+
+  const { data: enrollments = [], isLoading: loadingEnrollments } = useMyEnrollments()
+  const { data: studentRecord, isLoading: loadingStudent } = useMyStudentRecord()
+
+  const studentId = studentRecord?.id ?? studentRecord?.student_id ?? null
+  const { data: transcript, isLoading: loadingTranscript } = useTranscript(studentId)
+
+  const enrolledCount = enrollments.length
+  const totalCredits = enrollments.reduce((sum, e) => {
+    const ch = e.section?.course?.credit_hours ?? e.credit_hours ?? 0
+    return sum + Number(ch)
+  }, 0)
+
+  const cgpa = transcript?.cgpa ?? transcript?.CGPA ?? null
+  const totalCreditsPassed = transcript?.total_credits_passed ?? transcript?.credits_passed ?? null
+
+  const loading = loadingEnrollments || loadingStudent || loadingTranscript
+
+  const stats = [
+    { label: 'Enrolled Courses', value: loadingEnrollments ? '...' : enrolledCount },
+    { label: 'Credit Hours', value: loadingEnrollments ? '...' : totalCredits },
+    { label: 'CGPA', value: loading ? '...' : cgpa != null ? Number(cgpa).toFixed(2) : '—' },
+    { label: 'Credits Passed', value: loading ? '...' : totalCreditsPassed ?? '—' },
+  ]
 
   return (
     <div>
