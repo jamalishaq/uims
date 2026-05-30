@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
-  getSortingRowModel,
+  getSortedRowModel,
   flexRender,
   createColumnHelper,
 } from '@tanstack/react-table'
@@ -29,7 +29,7 @@ export default function Table({
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortingRowModel: getSortingRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     manualPagination: true,
   })
 

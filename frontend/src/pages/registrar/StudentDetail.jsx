@@ -95,8 +95,7 @@ export default function StudentDetail() {
   const name =
     student.full_name ??
     student.name ??
-    [student.first_name, student.last_name].filter(Boolean).join(' ') ||
-    student.username ??
+    ([student.first_name, student.last_name].filter(Boolean).join(' ') || student.username) ??
     '—'
 
   const enrollments = student.enrollments ?? student.current_enrollments ?? []
