@@ -35,6 +35,23 @@ async def search_books(
     return result.scalars().all()
 
 
+@router.get("/my-borrowings", response_model=list[BorrowingOut])
+async def my_borrowings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("student")),
+):
+    result = await db.execute(select(Student).where(Student.user_id == user.id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
+    result = await db.execute(
+        select(Borrowing)
+        .where(Borrowing.student_id == student.id)
+        .order_by(Borrowing.borrowed_date.desc())
+    )
+    return result.scalars().all()
+
+
 @router.post("/borrow", response_model=BorrowingOut)
 async def borrow_book(
     body: BorrowRequest,
