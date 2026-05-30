@@ -11,7 +11,7 @@ const col = createColumnHelper()
 
 export default function Sections() {
   useTitle('My Sections')
-  const { user_id } = useAuth()
+  const { sub: user_id } = useAuth()
   const navigate = useNavigate()
 
   const { data: sections = [], isLoading } = useSections(

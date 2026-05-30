@@ -21,7 +21,7 @@ const subCol = createColumnHelper()
 
 export default function Assignments() {
   useTitle('Assignments')
-  const { user_id } = useAuth()
+  const { sub: user_id } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const paramSection = searchParams.get('section')
 

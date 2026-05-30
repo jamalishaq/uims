@@ -21,7 +21,7 @@ function todayStr() {
 
 export default function Attendance() {
   useTitle('Attendance')
-  const { user_id } = useAuth()
+  const { sub: user_id } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const paramSection = searchParams.get('section')
 

@@ -22,7 +22,7 @@ function StatCard({ label, value, loading }) {
 
 export default function LecturerDashboard() {
   useTitle('Dashboard')
-  const { username, user_id } = useAuth()
+  const { username, sub: user_id } = useAuth()
 
   const { data: sections = [], isLoading: sectionsLoading } = useSections(
     user_id ? { lecturer_id: user_id } : undefined,

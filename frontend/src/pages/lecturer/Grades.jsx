@@ -22,7 +22,7 @@ function letterGrade(total) {
 
 export default function Grades() {
   useTitle('Grades')
-  const { user_id } = useAuth()
+  const { sub: user_id } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const paramSection = searchParams.get('section')
 

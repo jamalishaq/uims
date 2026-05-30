@@ -19,7 +19,7 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    access_token = create_access_token({"sub": str(user.id), "role": user.role, "username": user.username})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     response.set_cookie(
@@ -46,7 +46,7 @@ async def refresh(refresh_token: str = Cookie(None), db: AsyncSession = Depends(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    return TokenResponse(access_token=create_access_token({"sub": str(user.id), "role": user.role}))
+    return TokenResponse(access_token=create_access_token({"sub": str(user.id), "role": user.role, "username": user.username}))
 
 
 @router.post("/logout")
