@@ -1,9 +1,12 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
+from app.core.security import hash_password
+from app.models.user import User, UserRole
 from app.models import exam  # noqa: F401 — registers ExamSlot with Base metadata
 from app.routers import (
     auth, users, students, staff, academic, courses,
@@ -19,6 +22,22 @@ from app.websockets.notifications import router as notifications_ws_router
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    if settings.ADMIN_EMAIL and settings.ADMIN_USERNAME and settings.ADMIN_PASSWORD:
+        async with AsyncSessionLocal() as db:
+            existing = await db.execute(
+                select(User).where(User.email == settings.ADMIN_EMAIL)
+            )
+            if not existing.scalar_one_or_none():
+                db.add(User(
+                    email=settings.ADMIN_EMAIL,
+                    username=settings.ADMIN_USERNAME,
+                    password_hash=hash_password(settings.ADMIN_PASSWORD),
+                    role=UserRole.SUPER_ADMIN,
+                    is_active=True,
+                ))
+                await db.commit()
+
     yield
     await engine.dispose()
 
