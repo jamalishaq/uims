@@ -1,3 +1,6 @@
+import json
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -19,6 +22,16 @@ class Settings(BaseSettings):
     EMAIL_USERNAME: str
     EMAIL_PASSWORD: str
     EMAIL_FROM: str
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def fix_database_url(cls, v: str) -> str:
+        # Render provides postgres:// or postgresql://, but asyncpg requires postgresql+asyncpg://
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     class Config:
         env_file = ".env"
