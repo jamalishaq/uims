@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import useTitle from '../../hooks/useTitle'
 import PageHeader from '../../components/PageHeader'
@@ -79,10 +79,9 @@ function DepartmentModal({ open, onClose, faculties, selectedFacultyId }) {
   const [form, setForm] = useState({ name: '', code: '', faculty_id: selectedFacultyId ?? '' })
   const { mutate, isPending } = useAddDepartment()
 
-  // sync pre-fill when selectedFacultyId changes (modal open)
-  function handleOpen() {
-    setForm({ name: '', code: '', faculty_id: selectedFacultyId ?? '' })
-  }
+  useEffect(() => {
+    if (open) setForm({ name: '', code: '', faculty_id: selectedFacultyId ?? '' })
+  }, [open, selectedFacultyId])
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -101,7 +100,7 @@ function DepartmentModal({ open, onClose, faculties, selectedFacultyId }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Department">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" onFocus={handleOpen}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Select
           label="Faculty"
           value={form.faculty_id}
@@ -161,6 +160,19 @@ function ProgramModal({ open, onClose, departments, selectedDeptId }) {
     elective_credits_required: '',
   })
   const { mutate, isPending } = useAddProgram()
+
+  useEffect(() => {
+    if (open) setForm({
+      name: '',
+      code: '',
+      department_id: selectedDeptId ?? '',
+      degree_type: 'bsc',
+      duration_years: 4,
+      total_credits_required: '',
+      core_credits_required: '',
+      elective_credits_required: '',
+    })
+  }, [open, selectedDeptId])
 
   function handleSubmit(e) {
     e.preventDefault()
