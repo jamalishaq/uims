@@ -26,8 +26,9 @@ async def get_current_user(
 
 
 def require_role(*roles: str):
+    normalized = {r.upper() for r in roles}
     async def dependency(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
+        if user.role.upper() not in normalized:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return user
     return dependency

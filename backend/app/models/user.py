@@ -8,16 +8,16 @@ from app.models.base import TimestampMixin
 
 
 class UserRole(str, enum.Enum):
-    SUPER_ADMIN = "super_admin"
-    REGISTRAR = "registrar"
-    BURSAR = "bursar"
-    DEAN = "dean"
-    HOD = "hod"
-    LECTURER = "lecturer"
-    STUDENT = "student"
-    APPLICANT = "applicant"
-    LIBRARIAN = "librarian"
-    ALUMNI = "alumni"
+    SUPER_ADMIN = "SUPER_ADMIN"
+    REGISTRAR = "REGISTRAR"
+    BURSAR = "BURSAR"
+    DEAN = "DEAN"
+    HOD = "HOD"
+    LECTURER = "LECTURER"
+    STUDENT = "STUDENT"
+    APPLICANT = "APPLICANT"
+    LIBRARIAN = "LIBRARIAN"
+    ALUMNI = "ALUMNI"
 
 
 class User(TimestampMixin, Base):
