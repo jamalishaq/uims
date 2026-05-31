@@ -62,6 +62,7 @@ class SessionOut(BaseModel):
     start_date: date
     end_date: date
     is_current: bool
+    semesters: list["SemesterOut"] = []
     model_config = {"from_attributes": True}
 
 class SemesterCreate(BaseModel):

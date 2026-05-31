@@ -11,6 +11,9 @@ export const useAddStaff = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data) => api.post('/staff', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff'] })
+      qc.invalidateQueries({ queryKey: ['academic-stats'] })
+    },
   })
 }

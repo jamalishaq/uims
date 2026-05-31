@@ -9,7 +9,10 @@ export const useAddFaculty = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data) => api.post('/academic/faculties', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['faculties'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['faculties'] })
+      qc.invalidateQueries({ queryKey: ['academic-stats'] })
+    },
   })
 }
 
@@ -24,7 +27,10 @@ export const useAddDepartment = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data) => api.post('/academic/departments', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['departments'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['academic-stats'] })
+    },
   })
 }
 
@@ -39,9 +45,16 @@ export const useAddProgram = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data) => api.post('/academic/programs', data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['programs'] })
+      qc.invalidateQueries({ queryKey: ['academic-stats'] })
+    },
   })
 }
+
+// --- Stats ---
+export const useAcademicStats = () =>
+  useQuery({ queryKey: ['academic-stats'], queryFn: () => api.get('/academic/stats').then((r) => r.data) })
 
 // --- Sessions & Semesters ---
 export const useSessions = () =>

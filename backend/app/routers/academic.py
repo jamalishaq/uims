@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
+from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import get_db
 from app.core.dependencies import require_role
 from app.models.academic import Faculty, Department, Program
+from app.models.user import User
 from app.models.calendar import AcademicSession, Semester
 from app.schemas.academic import (
     FacultyCreate, FacultyOut,
@@ -15,6 +18,27 @@ from app.schemas.academic import (
 )
 
 router = APIRouter()
+
+
+@router.get("/stats")
+async def get_stats(db: AsyncSession = Depends(get_db), user=Depends(require_role("super_admin"))):
+    rows = await db.execute(
+        select(
+            func.count(Faculty.id).label("faculties"),
+            func.count(Department.id.distinct()).label("departments"),
+            func.count(Program.id.distinct()).label("programs"),
+        ).select_from(Faculty)
+        .outerjoin(Department, Department.faculty_id == Faculty.id)
+        .outerjoin(Program, Program.department_id == Department.id)
+    )
+    counts = rows.one()
+    users_count = (await db.execute(select(func.count()).select_from(User))).scalar()
+    return {
+        "faculties": counts.faculties,
+        "departments": counts.departments,
+        "programs": counts.programs,
+        "total_users": users_count,
+    }
 
 
 @router.get("/my-department", response_model=DepartmentOut)
@@ -82,7 +106,7 @@ async def create_program(body: ProgramCreate, db: AsyncSession = Depends(get_db)
 
 @router.get("/sessions", response_model=list[SessionOut])
 async def list_sessions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AcademicSession))
+    result = await db.execute(select(AcademicSession).options(selectinload(AcademicSession.semesters)))
     return result.scalars().all()
 
 
@@ -106,6 +130,10 @@ async def create_semester(session_id: int, body: SemesterCreate, db: AsyncSessio
         await db.execute(update(Semester).where(Semester.session_id == session_id).values(is_current=False))
     obj = Semester(session_id=session_id, **body.model_dump())
     db.add(obj)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=f"Semester '{body.name.value.title()}' already exists for this session")
     await db.refresh(obj)
     return obj
