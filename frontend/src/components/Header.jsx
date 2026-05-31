@@ -50,8 +50,8 @@ export default function Header({ onMenuClick, collapsed, onCollapseClick }) {
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">
             {username ?? '—'}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 capitalize leading-tight">
-            {role?.replace('_', ' ') ?? ''}
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
+            {role?.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) ?? ''}
           </p>
         </div>
       </div>

@@ -7,7 +7,9 @@ export default function useAuth() {
   return useMemo(() => {
     if (!token) return {}
     try {
-      return jwtDecode(token)
+      const decoded = jwtDecode(token)
+      if (decoded.role) decoded.role = decoded.role.toLowerCase()
+      return decoded
     } catch {
       return {}
     }

@@ -20,7 +20,7 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState('All')
 
   const queryParams = {}
-  if (roleFilter !== 'All') queryParams.role = roleFilter
+  if (roleFilter !== 'All') queryParams.role = roleFilter.toUpperCase()
   if (statusFilter === 'Active') queryParams.is_active = true
   if (statusFilter === 'Inactive') queryParams.is_active = false
 

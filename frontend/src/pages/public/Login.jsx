@@ -37,7 +37,7 @@ export default function Login() {
       setToken(data.access_token)
       const { role } = jwtDecode(data.access_token)
       const from = location.state?.from?.pathname
-      navigate(from ?? ROLE_HOME[role] ?? '/login', { replace: true })
+      navigate(from ?? ROLE_HOME[role?.toLowerCase()] ?? '/login', { replace: true })
     },
     onError: () => toast.error('Invalid email or password'),
   })
