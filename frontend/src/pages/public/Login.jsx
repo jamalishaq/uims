@@ -18,6 +18,18 @@ const schema = z.object({
   rememberMe: z.boolean(),
 })
 
+const DEMO_ROLES = [
+  { label: 'Super Admin', email: 'admin@school.edu', password: 'admin123' },
+  { label: 'Registrar',   email: 'registrar@school.edu',  password: 'registrar123'  },
+  { label: 'Bursar',      email: 'bursar@school.edu',     password: 'bursar123'     },
+  { label: 'Dean',        email: 'dean@school.edu',       password: 'dean123'       },
+  { label: 'HOD',         email: 'hod@school.edu',        password: 'hod123'        },
+  { label: 'Lecturer',    email: 'lecturer@school.edu',   password: 'lecturer123'   },
+  { label: 'Student',     email: 'student@school.edu',    password: 'student123'    },
+  { label: 'Applicant',   email: 'applicant@school.edu',  password: 'applicant123'  },
+  { label: 'Alumni',      email: 'alumni@school.edu',     password: 'alumni123'     },
+]
+
 export default function Login() {
   useTitle('Sign in')
   const navigate = useNavigate()
@@ -57,6 +69,7 @@ export default function Login() {
         </div>
 
         {/* Form */}
+        {false && (
         <form
           onSubmit={handleSubmit((v) => mutate(v))}
           className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4"
@@ -89,8 +102,29 @@ export default function Login() {
             Sign in
           </Button>
         </form>
+        )}
 
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+        {/* Demo logins */}
+        <div className="mt-6 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-4">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3 text-center">
+            Demo accounts
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {DEMO_ROLES.map(({ label, email, password }) => (
+              <button
+                key={email}
+                type="button"
+                disabled={isPending}
+                onClick={() => mutate({ email, password, rememberMe: false })}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Login as {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Applying for admission?{' '}
           <a href="/apply" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
             Apply here
