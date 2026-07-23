@@ -8,6 +8,9 @@ class AccountNotFoundException(NotFoundException):
         super().__init__(f"Account with this credential '{email | account_id}' was not found.")
 
 
+AccountAccountNotFoundException = AccountNotFoundException
+
+
 class InvalidJWTTokenException(UnauthorizedActionException):
     code = "IDENTITY_INVALID_JWT_TOKEN"
 

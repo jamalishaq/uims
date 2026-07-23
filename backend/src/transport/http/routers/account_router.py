@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, Depends
 
-from schemas import (
+from src.transport.http.schemas import (
     ApplicationCreateRequest, 
     LoginRequest, 
     RefreshTokenRequest, 
@@ -10,8 +10,8 @@ from schemas import (
     AccountResponse, 
     TokenResponse
 )
-from backend.src.service.services.account_service import AccountService
-from transport.http.dependencies import get_account_service
+from src.service.services.account_service import AccountService
+from src.transport.http.dependencies import get_account_service
 
 account_router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 

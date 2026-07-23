@@ -1,12 +1,12 @@
-from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
 import uuid
 import jwt
+from datetime import datetime, timedelta, timezone
+from typing import Any, Protocol
 from pwdlib import PasswordHash
 
-from backend.src.domain.models import Account, Role
-from domain.exceptions import InvalidJWTTokenException, RoleAssumingException, IncorrectPasswordException, AccountAccountNotFoundException
-from service.ports.repository import AccountReporsitoyPort
+from src.domain.models import Account, Role
+from src.domain.exceptions import InvalidJWTTokenException, RoleAssumingException, IncorrectPasswordException, AccountAccountNotFoundException
+from src.service.ports.repositories import AccountReporsitoyPort
 
 SECRET_KEY = "your-super-secret-key"
 REFRESH_SECRET_KEY = "your-refresh-secret-key"

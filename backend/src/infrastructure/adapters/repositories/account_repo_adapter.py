@@ -2,13 +2,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 
-from backend.src.domain.models import Account
-from backend.src.domain.exceptions.account_exception import DuplicateAccountProvisioningException
-from infrastructure.database.orms import AccountORM
-from infrastructure.database.connection import DatabaseFactory
-from infrastructure.exceptions import QueryTimeoutException
-from infrastructure.database import with_circuit_breaker, retry_on_transient_db_error
-from service.ports.repositories import AccountReporsitoyPort
+from src.domain.models import Account
+from src.domain.exceptions.account_exception import DuplicateAccountProvisioningException
+from src.infrastructure.database.orms import AccountORM
+from src.infrastructure.database.connection import DatabaseFactory
+from src.infrastructure.exceptions import QueryTimeoutException
+from src.infrastructure.database import with_circuit_breaker, retry_on_transient_db_error
+from src.service.ports.repositories import AccountReporsitoyPort
 
 
 class AccountRepositoryAdapter(AccountReporsitoyPort):
