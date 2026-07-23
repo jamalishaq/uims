@@ -1,7 +1,7 @@
 from uuid import UUID
 from pydantic import BaseModel, EmailStr
 
-from backend.src.domain.models import Role
+from src.domain.models import Role
 
 # --- Request Schemas ---
 
