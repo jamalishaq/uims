@@ -1,10 +1,10 @@
-from service import ApplicationService, AccountService
-from infrastructure.adapters.repositories import (
+from src.service import ApplicationService, AccountService
+from src.infrastructure.adapters.repositories import (
     ApplicationRepositoryAdapter, 
     ProgramRepositoryAdapter,
     AccountRepositoryAdapter
 )
-from infrastructure.database import DatabaseFactory
+from src.infrastructure.database import DatabaseFactory
 
 class DependencyRegistry:
     """A thread-safe configuration container that holds running infrastructure factories."""

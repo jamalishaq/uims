@@ -17,9 +17,9 @@ from tenacity import (
 from sqlalchemy.exc import OperationalError, DBAPIError
 from pybreaker import CircuitBreaker, CircuitBreakerError
 
-from infrastructure.exceptions import (
+from src.infrastructure.exceptions import (
     DatabaseUnavailableException,
-    TransactionDeadlockException,
+    # TransactionDeadlockException,
 )
 
 logger = logging.getLogger(__name__)

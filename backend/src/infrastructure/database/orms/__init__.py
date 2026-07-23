@@ -15,6 +15,7 @@ from .semester import SemesterORM
 from .course_section import CourseSectionORM
 from .account_orm import AccountORM
 from .enrollment import EnrollmentORM
+from .program import ProgramORM
 
 __all__ = [
     "Base",

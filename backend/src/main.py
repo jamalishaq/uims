@@ -2,15 +2,19 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from infrastructure.database.connection import DatabaseFactory
-from transport.http.dependencies import dependency_registry
-from transport.http.routers import (
-    application_router,
-    account_router
-)
-from .exception_handlers import handle_domain_exception, handle_unexpected_exception
 
-from domain.exceptions import DomainException
+# try:
+#     from .infrastructure.database.connection import DatabaseFactory
+#     from .transport.http.dependencies import dependency_registry
+#     from .transport.http.routers import application_router, account_router
+#     from .exception_handlers import handle_domain_exception, handle_unexpected_exception
+#     from .domain.exceptions import DomainException
+# except ImportError:
+from src.infrastructure.database.connection import DatabaseFactory
+from src.transport.http.dependencies import dependency_registry
+from src.transport.http.routers import application_router, account_router
+from src.exception_handlers import handle_domain_exception, handle_unexpected_exception
+from src.domain.exceptions import DomainException
 
 # 1. Setup Production Logging Properties
 logging.basicConfig(

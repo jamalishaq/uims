@@ -1,5 +1,6 @@
 from .account_exception import (
     AccountNotFoundException,
+    AccountAccountNotFoundException,
     IncorrectPasswordException,
     InvalidJWTTokenException,
     InsufficientPermissionsException,

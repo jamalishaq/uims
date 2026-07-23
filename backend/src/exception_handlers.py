@@ -2,7 +2,7 @@ import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from domain.exceptions import (
+from .domain.exceptions import (
     DomainException,
     NotFoundException,
     ValidationException,

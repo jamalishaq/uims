@@ -1,6 +1,6 @@
 from .application_model import Application, EntryRoute, IIVCVerificationStatus, ScreeningStatus
 from .program import Program, DegreeLevel
-from .account_model import User, Role
+from .account_model import Account, Role
 
 __all__ = [
     "Application",
@@ -9,6 +9,6 @@ __all__ = [
     "ScreeningStatus",
     "Program",
     "DegreeLevel",
-    "User",
+    "Account",
     "Role"
 ]

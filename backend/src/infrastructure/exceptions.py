@@ -11,7 +11,7 @@ domain_exceptions.py — this module only adds the ExternalServiceException
 subtypes relevant to database access.
 """
 
-from domain.exceptions import ExternalServiceException, ConflictException
+from src.domain.exceptions import ExternalServiceException, ConflictException
 
 
 # ============================================================
