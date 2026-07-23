@@ -1,6 +1,6 @@
 # University Management System
 
-A full-stack web application for managing university operations — admissions, academics, finance, and more — with role-based access control across ten user roles.
+A High-Throughput, Distributed University Core Engine designed using Clean Architecture (Ports and Adapters) to isolate complex academic domains. Engineered for high concurrency (preventing race conditions during mass course registration via distributed/pessimistic locking), fault tolerance (offloading intensive PDF transcript generation to async task pipelines), and absolute security (immutable audit logging on grade approval workflows).
 
 ## Features
 
