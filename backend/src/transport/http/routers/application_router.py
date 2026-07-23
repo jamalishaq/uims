@@ -1,17 +1,17 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, status, Query
 
-from service import ApplicationService
-from domain.models import ScreeningStatus
-from transport.http.dependencies import get_application_service
-from transport.http.schemas import (
+from src.service import ApplicationService
+from src.domain.models import ScreeningStatus
+from src.transport.http.dependencies import get_application_service
+from src.transport.http.schemas import (
     ApplicationCreateRequest,
     ApplicationEditRequest,
     ApplicationRejectRequest,
     ApplicationResponse
 )
 
-application_router = APIRouter(prefix="/api/v1/applications", tags="Apply")
+application_router = APIRouter(prefix="/api/v1/applications", tags=["Applications"])
 
 
 @application_router.post(

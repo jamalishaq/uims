@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Enum, String, JSON, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
-from base import Base, TimestampMixin
+from .base import Base, TimestampMixin
 
 class IIVCVerificationStatus(str, enum.Enum):
     NOT_APPLICABLE = "Not Applicable"
@@ -39,13 +39,13 @@ class ApplicationORM(Base, TimestampMixin):
     roles: Mapped[list[str]] = mapped_column(JSON)
     jamb_registration_number: Mapped[str] = mapped_column(String(20))
     jamb_scores: Mapped[dict[str, int]] = mapped_column(JSON)
-    jamb_total_scores = Mapped[int] = mapped_column()
+    jamb_total_scores: Mapped[int] = mapped_column()
     jamb_entry_route: Mapped[EntryRoute] = mapped_column(Enum(EntryRoute))
     olevel_gradess: Mapped[dict[str, int]] = mapped_column(JSON)
     aggregate_score: Mapped[float] = mapped_column()
-    first_choice_confirmed = Mapped[bool] = mapped_column()
-    is_indegene = Mapped[bool] = mapped_column()
-    iivc_verification_status = Mapped[IIVCVerificationStatus] = mapped_column(Enum(IIVCVerificationStatus))
+    first_choice_confirmed: Mapped[bool] = mapped_column()
+    is_indegene: Mapped[bool] = mapped_column()
+    iivc_verification_status: Mapped[IIVCVerificationStatus] = mapped_column(Enum(IIVCVerificationStatus))
     screening_status: Mapped[ScreeningStatus] = mapped_column(Enum(ScreeningStatus))
     # Audit Trail Fields
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,7 +1,7 @@
 from uuid import UUID
 from abc import ABC, abstractmethod
 
-from backend.src.domain.models import Application, ScreeningStatus
+from src.domain.models import Application, ScreeningStatus
 
 class ApplicationRepositoryPort(ABC):
     @abstractmethod

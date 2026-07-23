@@ -2,7 +2,7 @@ from typing import Any
 from enum import Enum
 from uuid import UUID
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 class IIVCVerificationStatus(str, Enum):
     NOT_APPLICABLE = "Not Applicable"
@@ -33,7 +33,6 @@ class Application:
     state_of_origin: str
     lga_of_origin: str
     is_indegene: bool
-    roles: list[str] = ["Applicant"]
     jamb_registration_number: str
     jamb_scores: dict[str, int]
     jamb_total_score:  int
@@ -42,6 +41,7 @@ class Application:
     aggregate_score: float
     first_choice_confirmed: bool
     program_id: str
+    roles: list[str] = field(default_factory=lambda: ["Applicant"])
     iivc_verification_status: IIVCVerificationStatus = IIVCVerificationStatus.PENDING
     screening_status: ScreeningStatus = ScreeningStatus.PENDING
     # Audit Trail Fields
