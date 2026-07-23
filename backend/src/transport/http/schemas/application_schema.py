@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr
-from domain.models import EntryRoute, IIVCVerificationStatus, ScreeningStatus
+from src.domain.models import EntryRoute, IIVCVerificationStatus, ScreeningStatus
 
 # --- Nested Input Schemas for Creation ---
 

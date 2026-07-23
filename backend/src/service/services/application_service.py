@@ -1,9 +1,9 @@
 from uuid import UUID, uuid4
 from typing import Any
 
-from backend.src.domain.models import Application, EntryRoute, IIVCVerificationStatus, ScreeningStatus
-from service.ports.repositories import ApplicationRepositoryPort, ProgramRepositoryPort
-from domain.exceptions import (
+from src.domain.models import Application, EntryRoute, IIVCVerificationStatus, ScreeningStatus
+from src.service.ports.repositories import ApplicationRepositoryPort, ProgramRepositoryPort
+from src.domain.exceptions import (
     # ApplicationAlreadyDecidedException,
     ApplicationNotFoundException,
     # AdmissionQuotaExceededException,

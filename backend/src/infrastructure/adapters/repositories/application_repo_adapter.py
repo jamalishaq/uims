@@ -2,13 +2,13 @@ from uuid import UUID
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 
-from service.ports.repositories import ApplicationRepositoryPort
-from backend.src.domain.models import Application, ScreeningStatus
-from domain.exceptions.application_exception import DuplicateApplicationException, ApplicationNotFoundException
-from infrastructure.database import DatabaseFactory
-from infrastructure.database.orms import ApplicationORM
-from infrastructure.exceptions import QueryTimeoutException
-from infrastructure.database import with_circuit_breaker, retry_on_transient_db_error
+from src.service.ports.repositories import ApplicationRepositoryPort
+from src.domain.models import Application, ScreeningStatus
+from src.domain.exceptions.application_exception import DuplicateApplicationException, ApplicationNotFoundException
+from src.infrastructure.database import DatabaseFactory
+from src.infrastructure.database.orms import ApplicationORM
+from src.infrastructure.exceptions import QueryTimeoutException
+from src.infrastructure.database import with_circuit_breaker, retry_on_transient_db_error
 
 class ApplicationRepositoryAdapter(ApplicationRepositoryPort):
     def __init__(self, db_factory: DatabaseFactory):
