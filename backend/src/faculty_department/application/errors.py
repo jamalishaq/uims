@@ -1,0 +1,20 @@
+"""Failures that belong to orchestration rather than to the domain.
+
+"No lecturer with that id" is not a rule about how a university works — it is a
+statement about what this system currently holds. Keeping these separate from
+:class:`FacultyDepartmentError` means a caller can tell a business rejection ("you do not
+teach this course") from a lookup miss ("we have never heard of you") without reading a
+message string.
+"""
+
+
+class ApplicationError(Exception):
+    """Base class for every Faculty & Department use-case error."""
+
+
+class LecturerNotFoundError(ApplicationError):
+    """No lecturer is stored under the given identifier."""
+
+
+class SessionNotFoundError(ApplicationError):
+    """No academic session is stored under the given identifier."""
