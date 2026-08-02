@@ -4,3 +4,4 @@ CLAUDE*.md
 .venv/
 __pycache__/
 *.pyc
+UMS_BUILD_PLAYBOOK.md
