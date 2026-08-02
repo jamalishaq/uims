@@ -2,11 +2,21 @@
 
 Owns an applicant's passage from application to matriculation: the ``Applicant``
 aggregate and the state machine it enforces, plus the bio-data and UTME value objects an
-application is made of. Stdlib only: no persistence, no ports, no HTTP reaches this
+application is made of. Owns, too, the two judgements made about an application from
+outside it — whether a program still has a place (``AdmissionCycle``) and whether an
+applicant's subjects qualify them for one (``ProgramEntryRequirement`` and
+``SubjectCombinationRule``). Stdlib only: no persistence, no ports, no HTTP reaches this
 package.
+
+Neither of those judgements says no by raising. ``QuotaExhausted`` is an outcome (see
+``outcomes.py``) and an unmet requirement is a verdict, because a full program and an
+unqualified applicant are how admissions normally ends for most of the people who apply
+(CLAUDE.md section 3).
 """
 
+from admissions.domain.admission_cycle import AdmissionCycle
 from admissions.domain.applicant import Applicant, ApplicationStatus
+from admissions.domain.entry_requirement import ProgramEntryRequirement, SubjectGroup
 from admissions.domain.errors import (
     AcceptanceFeeNotClearedError,
     AdmissionsError,
@@ -14,6 +24,9 @@ from admissions.domain.errors import (
     ApplicantNotScreenedError,
     ApplicationOutcomeFinalError,
     InvalidBioDataError,
+    InvalidOffersMadeError,
+    InvalidQuotaError,
+    InvalidSubjectGroupError,
     InvalidUtmeResultError,
     InvalidUtmeScoreError,
     MissingIdentifierError,
@@ -21,11 +34,17 @@ from admissions.domain.errors import (
     OfferAlreadyMadeError,
     OfferAlreadyRespondedToError,
     OfferNotAcceptedError,
+    OverlappingRequirementError,
+    UnsatisfiableRequirementError,
 )
-from admissions.domain.values import BioData, UtmeResult, UtmeSubjectScore
+from admissions.domain.outcomes import OfferOutcome, OfferRecorded, QuotaExhausted
+from admissions.domain.subject_combination_rule import SubjectCombinationRule
+from admissions.domain.values import UTME_SUBJECT_COUNT, BioData, UtmeResult, UtmeSubjectScore
 
 __all__ = [
+    "UTME_SUBJECT_COUNT",
     "AcceptanceFeeNotClearedError",
+    "AdmissionCycle",
     "AdmissionsError",
     "Applicant",
     "ApplicantAlreadyScreenedError",
@@ -34,6 +53,9 @@ __all__ = [
     "ApplicationStatus",
     "BioData",
     "InvalidBioDataError",
+    "InvalidOffersMadeError",
+    "InvalidQuotaError",
+    "InvalidSubjectGroupError",
     "InvalidUtmeResultError",
     "InvalidUtmeScoreError",
     "MissingIdentifierError",
@@ -41,6 +63,14 @@ __all__ = [
     "OfferAlreadyMadeError",
     "OfferAlreadyRespondedToError",
     "OfferNotAcceptedError",
+    "OfferOutcome",
+    "OfferRecorded",
+    "OverlappingRequirementError",
+    "ProgramEntryRequirement",
+    "QuotaExhausted",
+    "SubjectCombinationRule",
+    "SubjectGroup",
+    "UnsatisfiableRequirementError",
     "UtmeResult",
     "UtmeSubjectScore",
 ]

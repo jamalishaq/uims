@@ -38,6 +38,26 @@ class InvalidUtmeResultError(AdmissionsError):
     """A UTME result was not the required number of distinct subject scores."""
 
 
+class InvalidQuotaError(AdmissionsError):
+    """An admission cycle's quota was not a whole, non-negative number of places."""
+
+
+class InvalidOffersMadeError(AdmissionsError):
+    """A cycle was built with an offer count that is negative or already past its quota."""
+
+
+class InvalidSubjectGroupError(AdmissionsError):
+    """A one-of group offered no subjects, or was not a ``SubjectGroup`` at all."""
+
+
+class UnsatisfiableRequirementError(AdmissionsError):
+    """An entry requirement demands more subjects than a UTME result carries."""
+
+
+class OverlappingRequirementError(AdmissionsError):
+    """An entry requirement names one subject in more than one demand."""
+
+
 class ApplicantAlreadyScreenedError(AdmissionsError):
     """Screening has already been performed for this applicant."""
 
