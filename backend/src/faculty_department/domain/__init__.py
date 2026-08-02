@@ -19,7 +19,7 @@ from faculty_department.domain.errors import (
     SessionAlreadyOpenError,
     SessionNotOpenError,
 )
-from faculty_department.domain.events import GradeSubmitted, SessionOpened
+from faculty_department.domain.events import DomainEvent, GradeSubmitted, SessionOpened
 from faculty_department.domain.faculty import Faculty
 from faculty_department.domain.grade_submission import GradeSubmission
 from faculty_department.domain.lecturer import CourseAssignment, Lecturer
@@ -31,6 +31,7 @@ __all__ = [
     "AcademicYear",
     "CourseAssignment",
     "Department",
+    "DomainEvent",
     "DuplicateCourseAssignmentError",
     "Faculty",
     "FacultyDepartmentError",

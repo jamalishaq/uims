@@ -29,3 +29,7 @@ class GradeSubmitted:
     course_id: str
     semester_id: str
     grade: int
+
+
+DomainEvent = SessionOpened | GradeSubmitted
+"""Every fact this context publishes. The event publisher port speaks in this type."""
