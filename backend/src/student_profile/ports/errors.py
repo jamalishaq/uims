@@ -1,0 +1,26 @@
+"""Failures a repository or query port is allowed to express.
+
+These are the types an adapter translates *into*. Per CLAUDE.md section 4, a raw driver
+exception must never cross into the application layer: when the Postgres adapters arrive
+in Phase 6, a unique-constraint violation on a matric number becomes
+:class:`DuplicateAggregateError` here rather than surfacing as ``psycopg.IntegrityError``.
+The application layer is written against this vocabulary from the start, so that swap
+changes no calling code.
+
+Absence is deliberately *not* one of these. ``get`` returns ``None`` for an id nobody
+stored, and ``DepartmentCodePort`` returns ``None`` for a program Faculty & Department
+has never heard of: not finding something you asked about is a normal answer, not a
+failure.
+"""
+
+
+class RepositoryError(Exception):
+    """Base class for every failure a repository port can raise."""
+
+
+class DuplicateAggregateError(RepositoryError):
+    """``add`` was called with an identifier the repository already holds."""
+
+
+class AggregateNotFoundError(RepositoryError):
+    """``save`` was called with an identifier the repository never held."""
