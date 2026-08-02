@@ -3,10 +3,11 @@
 Owns an applicant's passage from application to matriculation: the ``Applicant``
 aggregate and the state machine it enforces, plus the bio-data and UTME value objects an
 application is made of. Owns, too, the two judgements made about an application from
-outside it — whether a program still has a place (``AdmissionCycle``) and whether an
+outside it — whether a program still has a place (``AdmissionCycle``), whether an
 applicant's subjects qualify them for one (``ProgramEntryRequirement`` and
-``SubjectCombinationRule``). Stdlib only: no persistence, no ports, no HTTP reaches this
-package.
+``SubjectCombinationRule``), and where a full program overflows to
+(``AlternativeProgramPolicy``). Stdlib only: no persistence, no ports, no HTTP reaches
+this package.
 
 Neither of those judgements says no by raising. ``QuotaExhausted`` is an outcome (see
 ``outcomes.py``) and an unmet requirement is a verdict, because a full program and an
@@ -15,6 +16,7 @@ unqualified applicant are how admissions normally ends for most of the people wh
 """
 
 from admissions.domain.admission_cycle import AdmissionCycle
+from admissions.domain.alternative_program_policy import AlternativeProgramPolicy
 from admissions.domain.applicant import Applicant, ApplicationStatus
 from admissions.domain.entry_requirement import ProgramEntryRequirement, SubjectGroup
 from admissions.domain.errors import (
@@ -23,6 +25,7 @@ from admissions.domain.errors import (
     ApplicantAlreadyScreenedError,
     ApplicantNotScreenedError,
     ApplicationOutcomeFinalError,
+    DuplicateAlternativeError,
     InvalidBioDataError,
     InvalidOffersMadeError,
     InvalidQuotaError,
@@ -35,6 +38,7 @@ from admissions.domain.errors import (
     OfferAlreadyRespondedToError,
     OfferNotAcceptedError,
     OverlappingRequirementError,
+    SelfReferentialAlternativeError,
     UnsatisfiableRequirementError,
 )
 from admissions.domain.outcomes import OfferOutcome, OfferRecorded, QuotaExhausted
@@ -46,12 +50,14 @@ __all__ = [
     "AcceptanceFeeNotClearedError",
     "AdmissionCycle",
     "AdmissionsError",
+    "AlternativeProgramPolicy",
     "Applicant",
     "ApplicantAlreadyScreenedError",
     "ApplicantNotScreenedError",
     "ApplicationOutcomeFinalError",
     "ApplicationStatus",
     "BioData",
+    "DuplicateAlternativeError",
     "InvalidBioDataError",
     "InvalidOffersMadeError",
     "InvalidQuotaError",
@@ -68,6 +74,7 @@ __all__ = [
     "OverlappingRequirementError",
     "ProgramEntryRequirement",
     "QuotaExhausted",
+    "SelfReferentialAlternativeError",
     "SubjectCombinationRule",
     "SubjectGroup",
     "UnsatisfiableRequirementError",

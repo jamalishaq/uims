@@ -241,6 +241,52 @@ class TestOffer:
         assert applicant.status is ApplicationStatus.SCREENED
 
 
+class TestAskingBeforeOffering:
+    """``require_awaiting_decision`` exists so a caller can find out *before* acting.
+
+    ``MakeOfferToApplicant`` has to claim a place on an ``AdmissionCycle`` before it can
+    offer that place to anybody, and the two aggregates are written in separate
+    transactions. A place claimed for an applicant who turns out to be unscreened has no
+    rollback to give it back, so the question has to be answerable in advance.
+    """
+
+    def test_a_screened_applicant_is_awaiting_a_decision(self) -> None:
+        a_screened_applicant().require_awaiting_decision()
+
+    def test_asking_changes_nothing(self) -> None:
+        """A query wearing a guard's clothes: it refuses or it is silent, never both."""
+        applicant = a_screened_applicant()
+
+        applicant.require_awaiting_decision()
+
+        assert applicant.status is ApplicationStatus.SCREENED
+        assert applicant.offered_program_id is None
+
+    def test_an_unscreened_applicant_says_so_before_a_place_is_claimed(self) -> None:
+        with pytest.raises(ApplicantNotScreenedError):
+            an_applicant().require_awaiting_decision()
+
+    def test_an_applicant_already_decided_says_so(self) -> None:
+        with pytest.raises(OfferAlreadyMadeError):
+            an_offered_applicant().require_awaiting_decision()
+
+    @pytest.mark.parametrize(("build", "status"), TERMINAL_APPLICANTS)
+    def test_a_finished_application_says_so(
+        self, build: Callable[[], Applicant], status: ApplicationStatus
+    ) -> None:
+        with pytest.raises(ApplicationOutcomeFinalError):
+            build().require_awaiting_decision()
+
+    def test_asking_does_not_excuse_the_aggregate_from_checking(self) -> None:
+        """An aggregate that trusted callers to have asked would not be enforcing anything."""
+        applicant = a_screened_applicant()
+        applicant.require_awaiting_decision()
+        applicant.offer(APPLIED_PROGRAM_ID)
+
+        with pytest.raises(OfferAlreadyMadeError):
+            applicant.offer(ALTERNATIVE_PROGRAM_ID)
+
+
 class TestNoOfferAvailable:
     def test_a_screened_applicant_can_be_told_no_place_is_available(self) -> None:
         applicant = a_screened_applicant()

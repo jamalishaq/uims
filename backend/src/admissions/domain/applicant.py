@@ -159,6 +159,22 @@ class Applicant:
             )
         self._status = ApplicationStatus.SCREENED
 
+    def require_awaiting_decision(self) -> None:
+        """Raise unless the applicant is screened and still waiting on an offer decision.
+
+        The same guard :meth:`offer` and :meth:`record_no_offer` make, exposed so a caller
+        can make it *before* doing something it cannot undo. ``MakeOfferToApplicant`` has to
+        claim a place on an ``AdmissionCycle`` before it can offer that place to anybody,
+        and the two aggregates are written in separate transactions (CLAUDE.md section 4) —
+        so a place claimed for an applicant who turns out to be unscreened is a place with
+        no rollback to give it back.
+
+        Asking is not the same as being told. :meth:`offer` still makes the check itself,
+        because an aggregate that trusted callers to have asked first would not be
+        enforcing anything.
+        """
+        self._reject_if_screening_incomplete()
+
     def offer(self, program_id: str) -> None:
         """Offer the applicant a place on ``program_id``, which need not be the one applied for."""
         self._reject_if_screening_incomplete()

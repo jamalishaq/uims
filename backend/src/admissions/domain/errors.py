@@ -58,6 +58,14 @@ class OverlappingRequirementError(AdmissionsError):
     """An entry requirement names one subject in more than one demand."""
 
 
+class SelfReferentialAlternativeError(AdmissionsError):
+    """An alternative-program policy lists the very program it is the fallback for."""
+
+
+class DuplicateAlternativeError(AdmissionsError):
+    """An alternative-program policy names the same program more than once."""
+
+
 class ApplicantAlreadyScreenedError(AdmissionsError):
     """Screening has already been performed for this applicant."""
 
