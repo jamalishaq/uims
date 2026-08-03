@@ -30,6 +30,22 @@ class AccountNotFoundError(BillingApplicationError):
     """
 
 
+class PaymentIntentNotFoundError(BillingApplicationError):
+    """No payment intent is stored under that gateway reference.
+
+    The refusal that matters on the webhook path, and it is deliberately not survivable. A
+    request whose signature verified came from the gateway, which proves who sent it and
+    nothing about whose money it is; the party a confirmation lands on is read off the intent,
+    because it was this system that opened the checkout and this system that knows who for.
+
+    So a reference with no intent behind it has nowhere to go. Recording it against a party
+    named in the payload would let a compromised gateway account, or a replay of a request
+    signed for a different institution, credit whichever ledger the body asked for. The
+    mismatch is left visible for a human, exactly as :class:`AccountNotFoundError` leaves
+    money for an unknown party visible rather than making it fit.
+    """
+
+
 class FeeScheduleNotPublishedError(BillingApplicationError):
     """No fee schedule has been published for that session.
 

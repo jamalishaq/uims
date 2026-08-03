@@ -29,7 +29,7 @@ opinion about a level should not force its consumer to invent one at the boundar
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from billing.domain.errors import (
@@ -55,6 +55,22 @@ field on ``StudentMatriculated``. It is a default and a construction argument, n
 how many levels a LASU program runs to, and when a student moves between them, is an
 institutional fact (CLAUDE.md section 6). Nothing in this phase advances a level, and that
 absence is visible rather than papered over with a guess.
+"""
+
+DEFAULT_INTENT_TTL = timedelta(hours=1)
+"""How long a payment intent may sit unanswered before reconciliation sweeps it.
+
+Billing's own default and a construction argument, in the manner of :data:`ENTRY_LEVEL` above
+— an operational figure this context is entitled to choose, rather than an institutional fact
+it would have to be told (CLAUDE.md section 6). It is longer than any checkout a payer will
+sit through, so a sweep will not race somebody still typing their card details, and short
+enough that a webhook lost at nine in the morning is caught the same working day rather than
+leaving a paid-up student unable to register.
+
+It is a *presumption of death*, not a deadline: nothing expires money. An expired intent is
+only a candidate for the question "did this actually go through", and the answer comes from
+the gateway rather than from the clock — which is why
+:meth:`~billing.domain.payment_intent.PaymentIntent.abandon` will not act without it.
 """
 
 

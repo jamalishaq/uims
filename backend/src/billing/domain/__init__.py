@@ -39,11 +39,14 @@ from billing.domain.errors import (
     InvalidFeeScheduleError,
     InvalidLevelError,
     InvalidPaymentError,
+    InvalidPaymentIntentError,
     MissingIdentifierError,
     PartyAlreadyLinkedError,
+    PaymentIntentFinalError,
 )
 from billing.domain.events import AcceptanceFeePaid, DomainEvent
 from billing.domain.fee_schedule import FeeSchedule, SessionFeeLine
+from billing.domain.gateway import GatewayStatus, GatewayVerification
 from billing.domain.outcomes import (
     ChargeAllocation,
     ChargeAlreadyRaised,
@@ -54,7 +57,17 @@ from billing.domain.outcomes import (
     PaymentOutcome,
 )
 from billing.domain.payment import Payment
+from billing.domain.payment_intent import (
+    IntentOutcome,
+    PaymentIntent,
+    PaymentIntentAbandoned,
+    PaymentIntentAlreadyResolved,
+    PaymentIntentConfirmed,
+    PaymentIntentFailed,
+    PaymentIntentStatus,
+)
 from billing.domain.values import (
+    DEFAULT_INTENT_TTL,
     ENTRY_LEVEL,
     LEVEL_STEP,
     MINOR_UNIT_PLACES,
@@ -63,6 +76,7 @@ from billing.domain.values import (
 )
 
 __all__ = [
+    "DEFAULT_INTENT_TTL",
     "ENTRY_LEVEL",
     "LEVEL_STEP",
     "MINOR_UNIT_PLACES",
@@ -78,17 +92,28 @@ __all__ = [
     "DomainEvent",
     "DuplicatePaymentIgnored",
     "FeeSchedule",
+    "GatewayStatus",
+    "GatewayVerification",
+    "IntentOutcome",
     "InvalidAmountError",
     "InvalidChargeError",
     "InvalidFeeScheduleError",
     "InvalidLevelError",
     "InvalidPaymentError",
+    "InvalidPaymentIntentError",
     "Level",
     "MissingIdentifierError",
     "Money",
     "PartyAlreadyLinkedError",
     "Payment",
     "PaymentApplied",
+    "PaymentIntent",
+    "PaymentIntentAbandoned",
+    "PaymentIntentAlreadyResolved",
+    "PaymentIntentConfirmed",
+    "PaymentIntentFailed",
+    "PaymentIntentFinalError",
+    "PaymentIntentStatus",
     "PaymentOutcome",
     "SessionFeeLine",
 ]

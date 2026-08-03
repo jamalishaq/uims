@@ -29,9 +29,17 @@ from billing.ports import (
     AccountRepositoryPort,
     EventPublisherPort,
     FeeScheduleRepositoryPort,
+    PaymentGatewayPort,
+    PaymentIntentRepositoryPort,
 )
 
-PORTS = [AccountRepositoryPort, EventPublisherPort, FeeScheduleRepositoryPort]
+PORTS = [
+    AccountRepositoryPort,
+    EventPublisherPort,
+    FeeScheduleRepositoryPort,
+    PaymentGatewayPort,
+    PaymentIntentRepositoryPort,
+]
 
 
 def _leaf_types(annotation: object) -> list[type]:
@@ -77,12 +85,32 @@ def test_every_type_on_a_port_belongs_to_this_context(port: type) -> None:
     )
 
 
+EXTERNAL_SYSTEM_PORTS = frozenset({"PaymentGatewayPort"})
+"""Ports that reach outside this *system* rather than into one of its bounded contexts.
+
+Exactly one, and it is exempted by its full name rather than by a pattern, so that the next
+port with "gateway" in it still has to come here and argue its case. A payment gateway is a
+third party run by a company that has never heard of a matriculation fee: asking it what
+became of a reference acquires no dependency on anybody's domain model, and the answer comes
+back as ``billing.domain.GatewayVerification``, which the check above still polices. CLAUDE.md
+section 3 names this port and requires reconciliation to use it before writing an intent off.
+"""
+
+
 def test_this_context_declares_no_query_port_into_any_other() -> None:
-    """Billing pulls nothing from anybody. Every fact it acts on was pushed to it.
+    """Billing pulls nothing from any other *context*. Every fact it acts on was pushed to it.
 
     Asserted by name because the temptation is specific and namable: a student's level, their
     program, their standing, whether they are still enrolled. Each would be a cross-context
     dependency not listed in CLAUDE.md section 3, and adding one is a decision to escalate.
+
+    The rule is about the seven contexts, which is why ``PaymentGatewayPort`` is exempt and
+    why the exemption is a named allowlist rather than a softened pattern.
+
+    Only names ending in ``Port`` are examined. The error types a port raises are exported
+    from here too, and ``PaymentGatewayUnavailableError`` is not a query into anything — a
+    check that read it as one would be answering a question about vocabulary rather than
+    about dependencies.
     """
     import billing.ports
 
@@ -100,9 +128,24 @@ def test_this_context_declares_no_query_port_into_any_other() -> None:
     named = [
         name
         for name in billing.ports.__all__
-        if any(word in name.lower() for word in forbidden) and "repository" not in name.lower()
+        if name.endswith("Port")
+        and any(word in name.lower() for word in forbidden)
+        and "repository" not in name.lower()
+        and name not in EXTERNAL_SYSTEM_PORTS
     ]
     assert not named, f"Billing has acquired a query port into another context: {named}"
+
+
+def test_the_gateway_exemption_covers_only_ports_that_exist() -> None:
+    """An allowlist naming a port nobody declares is an allowlist quietly widening.
+
+    The failure mode this catches is a rename: ``PaymentGatewayPort`` becomes something else,
+    the entry here is left behind, and the next port named after a gateway inherits an
+    exemption that was written for a different thing.
+    """
+    import billing.ports
+
+    assert set(billing.ports.__all__) >= EXTERNAL_SYSTEM_PORTS
 
 
 def test_the_clearance_rule_is_not_declared_here() -> None:

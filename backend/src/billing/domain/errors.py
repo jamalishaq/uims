@@ -51,3 +51,22 @@ class PartyAlreadyLinkedError(BillingError):
     second, different id would mean one ledger answering to two people, and there would be no
     way afterwards to say whose money was whose.
     """
+
+
+class InvalidPaymentIntentError(BillingError):
+    """A payment intent was offered a reference, an amount, a TTL or evidence it cannot take."""
+
+
+class PaymentIntentFinalError(BillingError):
+    """An intent that has reached a terminal state was asked to move again.
+
+    Terminal means confirmed or failed, and not abandoned: an abandonment is a presumption the
+    TTL made, and a later confirmation is a fact the gateway stated, so money that turns out to
+    have moved can still be recorded against the intent it was for.
+
+    A *replayed* confirmation raises nothing — it is the ordinary answer to a retrying webhook
+    and comes back as :class:`~billing.domain.payment_intent.PaymentIntentAlreadyResolved`.
+    What this refuses is a genuine contradiction, of which there is one: a gateway that
+    reported a reference failed and then reports the same reference succeeded. Nothing in this
+    context can decide which of the two the gateway meant.
+    """

@@ -31,22 +31,29 @@ import pytest
 from billing.adapters.inbound import (
     SESSION_OPENED,
     OfferAcceptedHandler,
+    PaymentWebhookHandler,
     SessionOpenedHandler,
+    WebhookSignatureVerifier,
 )
 from billing.adapters.outbound import (
     InMemoryAccountRepository,
     InMemoryEventPublisher,
     InMemoryFeeScheduleRepository,
+    InMemoryPaymentIntentRepository,
+    StubPaymentGateway,
 )
 from billing.application import (
     ApplySessionFees,
+    ConfirmPayment,
+    InitiatePayment,
     LinkStudentAccount,
     OpenAccountForOffer,
     ReadAccount,
+    ReconcilePaymentIntents,
     RecordPayment,
 )
 from billing.domain import FeeSchedule, Level, Money, SessionFeeLine
-from billing.ports import AccountRepositoryPort
+from billing.ports import AccountRepositoryPort, PaymentIntentRepositoryPort
 from faculty_department.adapters.outbound import InMemoryEventBus
 
 SESSION_2026 = "sess-2026"
@@ -57,6 +64,15 @@ ACCEPTANCE_FEE = Money(Decimal("20000"))
 MATRICULATION_FEE = Money(Decimal("50000"))
 CSC_SESSION_FEE = Money(Decimal("100000"))
 MCB_SESSION_FEE = Money(Decimal("120000"))
+
+WEBHOOK_SECRET = "sk_test_not_a_real_key"
+"""A test fixture and nothing more.
+
+The real secret is a rotated key that lives in the environment and reaches the verifier as a
+constructor argument (``backend/.env.example`` names it ``PAYSTACK_SECRET_KEY``). That a test
+can pick its own is the whole benefit of the secret being injected rather than read: nothing
+in ``src/`` touches ``os.environ``, so nothing here has to pretend to be a deployment.
+"""
 
 
 def a_schedule(session_id: str = SESSION_2026, **overrides: object) -> FeeSchedule:
@@ -121,6 +137,58 @@ def record_payment(
     accounts: AccountRepositoryPort, events: InMemoryEventPublisher
 ) -> RecordPayment:
     return RecordPayment(accounts, events)
+
+
+@pytest.fixture
+def intents() -> PaymentIntentRepositoryPort:
+    return InMemoryPaymentIntentRepository()
+
+
+@pytest.fixture
+def gateway() -> StubPaymentGateway:
+    """Concrete on purpose: tests script its answers and read ``asked`` off it."""
+    return StubPaymentGateway()
+
+
+@pytest.fixture
+def initiate_payment(
+    accounts: AccountRepositoryPort, intents: PaymentIntentRepositoryPort
+) -> InitiatePayment:
+    return InitiatePayment(accounts, intents)
+
+
+@pytest.fixture
+def confirm_payment(
+    intents: PaymentIntentRepositoryPort, record_payment: RecordPayment
+) -> ConfirmPayment:
+    return ConfirmPayment(intents, record_payment)
+
+
+@pytest.fixture
+def reconcile_payment_intents(
+    intents: PaymentIntentRepositoryPort,
+    gateway: StubPaymentGateway,
+    confirm_payment: ConfirmPayment,
+) -> ReconcilePaymentIntents:
+    return ReconcilePaymentIntents(intents, gateway, confirm_payment)
+
+
+@pytest.fixture
+def webhook_secret() -> str:
+    """The shared secret, as a fixture so a test can sign with it without importing it."""
+    return WEBHOOK_SECRET
+
+
+@pytest.fixture
+def verifier(webhook_secret: str) -> WebhookSignatureVerifier:
+    return WebhookSignatureVerifier(webhook_secret)
+
+
+@pytest.fixture
+def payment_webhook(
+    verifier: WebhookSignatureVerifier, confirm_payment: ConfirmPayment
+) -> PaymentWebhookHandler:
+    return PaymentWebhookHandler(verifier, confirm_payment)
 
 
 @pytest.fixture
