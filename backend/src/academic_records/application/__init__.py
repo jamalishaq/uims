@@ -34,15 +34,27 @@ from academic_records.application.record_submitted_grade import (
     RecordSubmittedGrade,
     RecordSubmittedGradeCommand,
 )
+from academic_records.application.views import (
+    AcademicRecordView,
+    CourseGradeView,
+    GradeCorrectedView,
+    GradeCorrectionView,
+    GradeRecordedView,
+)
 
 __all__ = [
     "AcademicRecordNotFoundError",
+    "AcademicRecordView",
     "AcademicRecordsApplicationError",
     "CorrectGrade",
     "CorrectGradeCommand",
     "CourseCreditsUnavailableError",
+    "CourseGradeView",
     "GradeCorrected",
+    "GradeCorrectedView",
+    "GradeCorrectionView",
     "GradeRecorded",
+    "GradeRecordedView",
     "ReadAcademicRecord",
     "RecordSubmittedGrade",
     "RecordSubmittedGradeCommand",

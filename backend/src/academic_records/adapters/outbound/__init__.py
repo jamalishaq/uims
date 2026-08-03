@@ -10,6 +10,11 @@ and it is *fed* its answers rather than reading that context — which is the de
 showing up as a constructor.
 """
 
+from academic_records.adapters.outbound.course_catalog_course_credit_adapter import (
+    CourseCatalogCourseCreditAdapter,
+    CourseCredit,
+    CourseCreditSource,
+)
 from academic_records.adapters.outbound.in_memory_academic_record_repository import (
     InMemoryAcademicRecordRepository,
 )
@@ -18,6 +23,9 @@ from academic_records.adapters.outbound.in_memory_course_credit_adapter import (
 )
 
 __all__ = [
+    "CourseCatalogCourseCreditAdapter",
+    "CourseCredit",
+    "CourseCreditSource",
     "InMemoryAcademicRecordRepository",
     "InMemoryCourseCreditAdapter",
 ]

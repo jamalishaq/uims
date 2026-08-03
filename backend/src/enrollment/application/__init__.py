@@ -28,14 +28,24 @@ from enrollment.application.register_for_course import (
     RegistrationOutcome,
     RegistrationRefused,
 )
+from enrollment.application.views import (
+    EligibilityFailureView,
+    RegistrationAcceptedView,
+    RegistrationRefusedView,
+    TermView,
+)
 
 __all__ = [
     "ApplicationError",
     "CourseNotFoundError",
     "CourseOfferingNotFoundError",
+    "EligibilityFailureView",
     "RegisterForCourse",
     "RegisterForCourseCommand",
     "RegistrationAccepted",
+    "RegistrationAcceptedView",
     "RegistrationOutcome",
     "RegistrationRefused",
+    "RegistrationRefusedView",
+    "TermView",
 ]

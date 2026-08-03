@@ -1,67 +1,64 @@
 # University Management System — API
 
-FastAPI backend for the University Management System.
+FastAPI backend for the University Management System: seven bounded contexts behind one
+hexagonal HTTP surface. See `CLAUDE.md` for the architecture and `UMS_BUILD_PLAYBOOK.md` for
+how it was built, phase by phase.
+
+> **This API has no authentication.** Routes that record payments, correct transcripts and
+> sweep payment intents are reachable by anyone who can reach the process. Do not expose it to
+> an untrusted network until an auth phase lands.
 
 ## Requirements
 
-- Python 3.11+
-- PostgreSQL
-- Redis
+- Python 3.12+
+- PostgreSQL 16 (`docker compose up -d db` gives you one)
+- [uv](https://docs.astral.sh/uv/)
 
 ## Setup
 
 ```bash
 cd backend
-pip install -r requirements.txt
+uv sync
 cp .env.example .env
 ```
 
-Open `.env` and fill in your values:
+`src/main.py` is the only module that reads the environment. It requires `DATABASE_URL` and
+`PAYSTACK_SECRET_KEY`, and fails at startup with their names if either is missing rather than
+at the first request that needs them.
 
-```env
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/university_db
-SECRET_KEY=your-random-secret-key
-REDIS_URL=redis://localhost:6379/0
-PAYSTACK_SECRET_KEY=sk_live_...
-PAYSTACK_PUBLIC_KEY=pk_live_...
-EMAIL_HOST=smtp.gmail.com
-EMAIL_USERNAME=your@email.com
-EMAIL_PASSWORD=your-app-password
-EMAIL_FROM=noreply@university.edu.ng
-```
-
-## Database
-
-```bash
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
-```
+`DEPARTMENT_NUMERIC_CODES` deserves a note: it maps Faculty & Department's alphabetic
+department code to the four digits a matric number carries, and it has **no default**. Nothing
+in this repository states a real one, and a guess would be baked into every student number ever
+issued. A department missing from the register cannot have students registered against it.
 
 ## Run
 
 ```bash
-# Development
-uvicorn main:app --reload
-
-# Production
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn main:app --reload            # development
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4   # production
 ```
 
-API docs available at `http://localhost:8000/docs`
+- Swagger UI: <http://localhost:8000/docs>
+- OpenAPI schema: <http://localhost:8000/openapi.json>
+- Liveness probe: `GET /health` — deliberately does not touch the database, so a blip the
+  retry policy is about to ride out does not take the API out of rotation.
 
-## Background Workers
+Every route is mounted under `/api/v1`, one router per context.
 
-In a separate terminal:
+## Database
+
+There are no migrations yet. The schema is created by the test fixtures; a deployment needs
+`alembic` set up first, which is why startup deliberately does *not* run `create_all` — a
+process that built its own schema would make a half-migrated database look healthy.
+
+## Tests
 
 ```bash
-celery -A app.tasks.celery_app.celery worker --loglevel=info -Q email
+uv run pytest                               # in-memory, needs no database
+docker compose up -d db
+UMS_TEST_BACKEND=postgres uv run pytest      # the same tests, against Postgres
+uv run ruff check && uv run ruff format --check
 ```
 
-## WebSocket Endpoints
-
-| Endpoint | Description |
-|---|---|
-| `ws://localhost:8000/ws/chat/{section_id}?token=<jwt>` | Course group chat |
-| `ws://localhost:8000/ws/notifications?token=<jwt>` | Real-time notifications |
-
-Token is the JWT access token obtained from `/api/v1/auth/login`.
+`tests/architecture/test_dependency_rule.py` is the merge gate: four static rules over the
+import graph. Red means stop.

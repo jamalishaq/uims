@@ -45,12 +45,14 @@ from admissions.application.screen_applicant import (
     ScreeningOutcome,
 )
 from admissions.application.submit_application import SubmitApplication, SubmitApplicationCommand
+from admissions.application.views import ApplicantView, UtmeSubjectScoreView
 
 __all__ = [
     "AdmissionCycleNotFoundError",
     "ApplicantNotFoundError",
     "ApplicantNotQualified",
     "ApplicantQualified",
+    "ApplicantView",
     "ApplicationError",
     "EntryRequirementNotFoundError",
     "MakeOfferToApplicant",
@@ -65,4 +67,5 @@ __all__ = [
     "ScreeningOutcome",
     "SubmitApplication",
     "SubmitApplicationCommand",
+    "UtmeSubjectScoreView",
 ]
