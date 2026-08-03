@@ -13,6 +13,7 @@ from student_profile.application.register_new_student import (
     RegisterNewStudent,
     RegisterNewStudentCommand,
 )
+from student_profile.application.views import StudentView
 
 __all__ = [
     "DEFAULT_ENTRY_LEVEL",
@@ -20,4 +21,5 @@ __all__ = [
     "ProgramPlacementUnknownError",
     "RegisterNewStudent",
     "RegisterNewStudentCommand",
+    "StudentView",
 ]

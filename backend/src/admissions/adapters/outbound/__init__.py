@@ -10,6 +10,11 @@ reached over a boundary that is not a Python import. It is fed its answers rathe
 reading that context, which is the dependency rule showing up as a constructor.
 """
 
+from admissions.adapters.outbound.faculty_department_program_info_adapter import (
+    FacultyDepartmentProgramInfoAdapter,
+    ProgramPlacement,
+    ProgramPlacementSource,
+)
 from admissions.adapters.outbound.in_memory_admission_cycle_repository import (
     InMemoryAdmissionCycleRepository,
 )
@@ -23,9 +28,12 @@ from admissions.adapters.outbound.in_memory_entry_requirement_repository import 
 from admissions.adapters.outbound.in_memory_program_info_adapter import InMemoryProgramInfoAdapter
 
 __all__ = [
+    "FacultyDepartmentProgramInfoAdapter",
     "InMemoryAdmissionCycleRepository",
     "InMemoryAlternativeProgramPolicyRepository",
     "InMemoryApplicantRepository",
     "InMemoryProgramEntryRequirementRepository",
     "InMemoryProgramInfoAdapter",
+    "ProgramPlacement",
+    "ProgramPlacementSource",
 ]

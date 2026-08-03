@@ -1,14 +1,20 @@
 """Architecture fitness test: the dependency rule.
 
 Statically checks the import graph of ``src/`` without importing anything under test.
-Three rules, per CLAUDE.md sections 3 and 4:
+Four rules, per CLAUDE.md sections 3 and 4:
 
 (a) A module under ``<context>/domain/`` imports nothing from ``application/``, ``ports/``
     or ``adapters/`` — of its own context or any other. Dependencies point inward only.
 (b) A module in one context imports nothing from another context, at all. Cross-context
     access goes through query ports typed in the *consuming* context's own language, with
-    anti-corruption translation in the consumer's own adapter.
+    anti-corruption translation in the consumer's own adapter. The composition root is the
+    one named exemption — see :data:`COMPOSITION_ROOT`.
 (c) A module under ``<context>/domain/`` imports no third-party package — stdlib only.
+(d) A module under ``<context>/adapters/inbound/http/`` imports nothing from any ``domain/``,
+    bar the one carve-out in :data:`HTTP_MAY_IMPORT_FROM_DOMAIN`. An HTTP route calls use
+    cases and maps application-layer views; the Pydantic models stay on the adapter side of
+    the boundary and the domain types stay on the other. Phase 6.2's verification criterion,
+    made checkable.
 
 Imports guarded by ``if TYPE_CHECKING:`` are deliberately *not* exempt: a type-only
 reference across a context boundary is still a boundary violation.
@@ -35,8 +41,51 @@ EXPECTED_CONTEXTS = frozenset(
     }
 )
 
+COMPOSITION_ROOT = frozenset({"main"})
+"""The one module allowed to know all seven contexts, named by exact name.
+
+A composition root that could not import the contexts it composes would not be one. Somebody
+has to introduce Faculty & Department's publisher to Billing's handler, and hand Enrollment an
+adapter that reads Course Catalog, and neither context may import the other — so the job falls
+to a module outside all of them. ``tests/conftest.py`` has made exactly this argument since
+Phase 6.1 ("a module that imported all seven would be a module importing six contexts it has no
+business knowing about. A composition root may; that is what makes it one"); this is the same
+claim, now that the root has moved into ``src/`` to be served by uvicorn.
+
+**By exact name, so the next module that wants the exemption has to argue its case** — the
+arrangement ``tests/billing/test_port_types_are_billing_owned.py`` uses for
+``PaymentGatewayPort``. A pattern like "any flat module" would silently admit the second
+composition root, and two of them is how the wiring starts to disagree with itself.
+
+Note this exempts *only* rule (b). ``src/main.py`` is not a context, so it has no ``domain/``
+and rules (a), (c) and (d) never reach it — see :meth:`Module.layer`.
+"""
+
 DOMAIN = "domain"
 OUTWARD_LAYERS = frozenset({"application", "ports", "adapters"})
+HTTP_LAYER = ("adapters", "inbound", "http")
+"""Where a context's HTTP routes live, relative to the context package."""
+
+HTTP_MAY_IMPORT_FROM_DOMAIN = frozenset({"errors"})
+"""The only ``domain/`` modules an HTTP adapter may name, and why it is exactly this one.
+
+Turning a refusal into a status code is transport work — it is the definition of transport
+work — and it cannot be done without naming the exceptions being turned. There is no way to
+say "a ``PrerequisiteCycleError`` is a 409" without the class, and re-exporting the whole of
+``domain/errors.py`` through ``application/`` to dodge the rule would be the same import
+wearing a hat.
+
+The carve-out is safe because an exception is not a model. It carries no state a route could
+read, no method a route could call, and no invariant a route could break: every domain error
+in this system is a bare subclass whose only payload is a message. What rule (d) exists to stop
+is a route holding an *entity* — something with behaviour, that can be mutated, and whose
+projection to primitives belongs in ``application/views.py``. None of that applies to a class
+whose whole body is a docstring.
+
+Narrow on purpose: one module name, not a prefix and not a pattern. ``domain.values`` is not
+here, so a route still cannot reach for an enum, and ``domain.errors`` importing something
+heavier later does not widen this — the rule checks what the *route* names.
+"""
 
 
 # ---- import graph extraction ----
@@ -56,6 +105,11 @@ class Module:
     @property
     def layer(self) -> str | None:
         return self.parts[1] if len(self.parts) > 1 else None
+
+    @property
+    def is_http_adapter(self) -> bool:
+        """Whether this module is one of a context's HTTP routes."""
+        return self.parts[1 : 1 + len(HTTP_LAYER)] == HTTP_LAYER
 
     @property
     def package_parts(self) -> tuple[str, ...]:
@@ -139,7 +193,7 @@ def _where(src_root: Path, module: Module, ref: ImportRef) -> str:
     return f"{module.path.relative_to(src_root).as_posix()}:{ref.lineno}"
 
 
-# ---- the three rules ----
+# ---- the four rules ----
 
 
 def check_domain_is_inward_only(src_root: Path) -> list[str]:
@@ -160,10 +214,12 @@ def check_domain_is_inward_only(src_root: Path) -> list[str]:
 
 
 def check_no_cross_context_imports(src_root: Path) -> list[str]:
-    """(b) No module may import another context, at any layer."""
+    """(b) No module may import another context, at any layer — bar the composition root."""
     contexts = discover_contexts(src_root)
     violations = []
     for module in iter_modules(src_root):
+        if module.context in COMPOSITION_ROOT:
+            continue
         for ref in imports_of(module):
             target = target_of(ref, contexts)
             if target and target[0] != module.context:
@@ -189,6 +245,35 @@ def check_domain_imports_only_stdlib(src_root: Path) -> list[str]:
             violations.append(
                 f"{_where(src_root, module, ref)}: domain module imports third-party "
                 f"package '{root}' ({ref.text}) - the domain layer is stdlib-only"
+            )
+    return sorted(violations)
+
+
+def check_http_adapters_do_not_import_domain(src_root: Path) -> list[str]:
+    """(d) An HTTP route imports no domain module — its own context's least of all.
+
+    Rule (b) already stops it reaching another context. What this adds is the *inward* half:
+    a route may call use cases and read the views they return, and may not name an entity, a
+    value object or a domain service. The projection from a domain type to primitives belongs
+    in ``application/views.py``, inside the context that owns the vocabulary; a route that
+    imported ``Course`` to build a response would be doing that translation in the transport,
+    where a second transport would have to do it again and the two would drift.
+    """
+    contexts = discover_contexts(src_root)
+    violations = []
+    for module in iter_modules(src_root):
+        if not module.is_http_adapter:
+            continue
+        for ref in imports_of(module):
+            target = target_of(ref, contexts)
+            if not target or target[1] != DOMAIN:
+                continue
+            if ref.parts[2:3] and ref.parts[2] in HTTP_MAY_IMPORT_FROM_DOMAIN:
+                continue
+            violations.append(
+                f"{_where(src_root, module, ref)}: HTTP adapter imports "
+                f"{target[0]}.{DOMAIN} ({ref.text}) - routes call use cases and map "
+                f"application views; domain types stay behind the application boundary"
             )
     return sorted(violations)
 
@@ -220,6 +305,22 @@ def test_no_cross_context_imports() -> None:
 def test_domain_imports_only_stdlib() -> None:
     violations = check_domain_imports_only_stdlib(SRC)
     assert not violations, _report(violations)
+
+
+def test_http_adapters_do_not_import_domain() -> None:
+    violations = check_http_adapters_do_not_import_domain(SRC)
+    assert not violations, _report(violations)
+
+
+def test_the_composition_root_is_the_only_exempted_module() -> None:
+    """The exemption is a name, and this is the assertion that keeps it to one.
+
+    Rule (b) is the merge gate; an exemption widened by accident would retire it quietly.
+    """
+    assert frozenset({"main"}) == COMPOSITION_ROOT
+    assert not COMPOSITION_ROOT & discover_contexts(SRC), (
+        "the composition root may not also be a bounded context"
+    )
 
 
 # ---- the checkers themselves, against synthetic trees ----
@@ -266,6 +367,7 @@ def test_checker_accepts_clean_tree(tmp_path: Path) -> None:
     assert check_domain_is_inward_only(src_root) == []
     assert check_no_cross_context_imports(src_root) == []
     assert check_domain_imports_only_stdlib(src_root) == []
+    assert check_http_adapters_do_not_import_domain(src_root) == []
 
 
 @pytest.mark.parametrize(
@@ -303,6 +405,103 @@ def test_checker_flags_cross_context_import(tmp_path: Path, source: str) -> None
     assert len(violations) == 1, violations
     assert violations[0].startswith("shop/application/place_order.py:")
     assert "warehouse" in violations[0]
+
+
+def test_the_composition_root_may_import_every_context(tmp_path: Path) -> None:
+    """The exemption works: wiring two contexts together from ``main.py`` is not a violation."""
+    src_root = _tree_with(
+        tmp_path,
+        **{
+            "main.py": (
+                "from shop.application.place_order import PlaceOrder\nimport warehouse.ports\n"
+            )
+        },
+    )
+    assert discover_contexts(src_root) == {"shop", "warehouse"}, "main.py is not a context"
+    assert check_no_cross_context_imports(src_root) == []
+
+
+def test_a_second_flat_module_does_not_get_the_exemption(tmp_path: Path) -> None:
+    """The exemption is one name. A module that wants it has to be added on purpose."""
+    src_root = _tree_with(
+        tmp_path,
+        **{"wiring.py": "from shop.application.place_order import PlaceOrder\n"},
+    )
+    violations = check_no_cross_context_imports(src_root)
+    assert len(violations) == 1, violations
+    assert violations[0].startswith("wiring.py:")
+    assert "'wiring' imports context 'shop'" in violations[0]
+
+
+HTTP_TREE = {
+    "shop/adapters/inbound/__init__.py": "",
+    "shop/adapters/inbound/http/__init__.py": "",
+    "shop/adapters/inbound/http/router.py": "",
+}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from shop.domain.order import Order\n",
+        "from shop.domain import money\n",
+        "import shop.domain.money\n",
+        "from ....domain.order import Order\n",
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from shop.domain import order\n",
+    ],
+)
+def test_checker_flags_http_adapter_importing_domain(tmp_path: Path, source: str) -> None:
+    src_root = _tree_with(tmp_path, **{**HTTP_TREE, "shop/adapters/inbound/http/router.py": source})
+    violations = check_http_adapters_do_not_import_domain(src_root)
+    assert len(violations) == 1, violations
+    assert violations[0].startswith("shop/adapters/inbound/http/router.py:")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from shop.application.place_order import PlaceOrder\n",
+        "from fastapi import APIRouter\nfrom pydantic import BaseModel\n",
+        "from ....ports import OrderRepositoryPort\n",
+    ],
+)
+def test_checker_accepts_an_http_adapter_on_its_side(tmp_path: Path, source: str) -> None:
+    """Use cases, ports and third-party web libraries are all fair game for a route."""
+    src_root = _tree_with(tmp_path, **{**HTTP_TREE, "shop/adapters/inbound/http/router.py": source})
+    assert check_http_adapters_do_not_import_domain(src_root) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from shop.domain.errors import ShopError\n",
+        "from ....domain.errors import ShopError\n",
+        "import shop.domain.errors\n",
+    ],
+)
+def test_an_http_adapter_may_name_the_errors_it_maps(tmp_path: Path, source: str) -> None:
+    """The one carve-out: a status table cannot be written without the exception classes."""
+    src_root = _tree_with(tmp_path, **{**HTTP_TREE, "shop/adapters/inbound/http/errors.py": source})
+    assert check_http_adapters_do_not_import_domain(src_root) == []
+
+
+def test_the_carve_out_is_one_module_and_not_a_prefix(tmp_path: Path) -> None:
+    """``domain.errors`` is allowed; ``domain.errors_and_values`` is a different module."""
+    assert frozenset({"errors"}) == HTTP_MAY_IMPORT_FROM_DOMAIN
+    src_root = _tree_with(
+        tmp_path,
+        **{**HTTP_TREE, "shop/adapters/inbound/http/errors.py": "from shop.domain import values\n"},
+    )
+    assert len(check_http_adapters_do_not_import_domain(src_root)) == 1
+
+
+def test_the_http_rule_does_not_fire_on_other_adapters(tmp_path: Path) -> None:
+    """An outbound repository maps rows onto entities; naming them is its whole job."""
+    src_root = _tree_with(
+        tmp_path,
+        **{"shop/adapters/outbound/repo.py": "from shop.domain.order import Order\n"},
+    )
+    assert check_http_adapters_do_not_import_domain(src_root) == []
 
 
 @pytest.mark.parametrize(

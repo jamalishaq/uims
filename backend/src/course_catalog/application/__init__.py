@@ -33,6 +33,7 @@ from course_catalog.application.remove_prerequisite import (
     RemovePrerequisiteCommand,
 )
 from course_catalog.application.retire_course import RetireCourse, RetireCourseCommand
+from course_catalog.application.views import CourseView
 
 __all__ = [
     "AddPrerequisite",
@@ -41,6 +42,7 @@ __all__ = [
     "AmendCourseCommand",
     "ApplicationError",
     "CourseNotFoundError",
+    "CourseView",
     "DuplicateCourseCodeError",
     "ListDepartmentCourses",
     "ListDepartmentCoursesCommand",

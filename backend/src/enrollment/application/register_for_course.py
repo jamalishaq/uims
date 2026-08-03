@@ -6,6 +6,7 @@ from enrollment.application.errors import CourseNotFoundError, CourseOfferingNot
 from enrollment.domain.course_offering import CourseOffering
 from enrollment.domain.eligibility import EligibilityFailure, EligibilityReason, EligibilityRule
 from enrollment.domain.enrollment import Enrollment
+from enrollment.domain.errors import InvalidTermError
 from enrollment.domain.facts import AcademicStanding, CourseFacts
 from enrollment.domain.outcomes import SeatClaimed
 from enrollment.domain.values import SemesterOrdinal, Term
@@ -41,6 +42,46 @@ class RegisterForCourseCommand:
     session_id: str
     semester_id: str
     semester_ordinal: SemesterOrdinal
+
+    @classmethod
+    def of(
+        cls,
+        *,
+        enrollment_id: str,
+        student_id: str,
+        course_id: str,
+        session_id: str,
+        semester_id: str,
+        semester_ordinal: int,
+    ) -> "RegisterForCourseCommand":
+        """Build the command from an ordinal that is still an integer.
+
+        The last field is the one this class could not make a primitive: an ordinal is 1 or 2
+        and nothing else, and a caller passing 3 has to be told so somewhere. This is that
+        somewhere. An HTTP adapter may not import ``SemesterOrdinal`` — rule (d) of the
+        architecture fitness test — so without this it would either have to reach past the
+        boundary or the boundary would have to accept an unchecked integer and discover the
+        problem three calls later, inside ``Term``.
+
+        Raises:
+            InvalidTermError: the ordinal names no semester of a session.
+        """
+        try:
+            ordinal = SemesterOrdinal(semester_ordinal)
+        except ValueError as unknown:
+            permitted = ", ".join(str(member.value) for member in SemesterOrdinal)
+            raise InvalidTermError(
+                f"semester ordinal {semester_ordinal!r} names no semester; a session has "
+                f"semesters {permitted}"
+            ) from unknown
+        return cls(
+            enrollment_id=enrollment_id,
+            student_id=student_id,
+            course_id=course_id,
+            session_id=session_id,
+            semester_id=semester_id,
+            semester_ordinal=ordinal,
+        )
 
 
 @dataclass(frozen=True)

@@ -9,11 +9,16 @@ from faculty_department.application.errors import (
     LecturerNotFoundError,
     SessionNotFoundError,
 )
+from faculty_department.application.read_program_placement import ReadProgramPlacement
 from faculty_department.application.submit_grade import SubmitGrade, SubmitGradeCommand
+from faculty_department.application.views import GradeSubmittedView, ProgramPlacementView
 
 __all__ = [
     "ApplicationError",
+    "GradeSubmittedView",
     "LecturerNotFoundError",
+    "ProgramPlacementView",
+    "ReadProgramPlacement",
     "SessionNotFoundError",
     "SubmitGrade",
     "SubmitGradeCommand",

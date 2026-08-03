@@ -17,6 +17,11 @@ it as the fake the application tests drive — the same relationship the two Cou
 answers would have if the catalog were reachable today.
 """
 
+from enrollment.adapters.outbound.academic_records_standing_adapter import (
+    AcademicRecordsStandingAdapter,
+    StudentRecord,
+    StudentRecordSource,
+)
 from enrollment.adapters.outbound.billing_financial_clearance_adapter import (
     BILLING_CLEARANCE_THRESHOLDS,
     BillingFinancialClearanceAdapter,
@@ -24,6 +29,11 @@ from enrollment.adapters.outbound.billing_financial_clearance_adapter import (
     MalformedSessionFeeError,
     SessionFeeLedger,
     SessionFeePosition,
+)
+from enrollment.adapters.outbound.course_catalog_course_info_adapter import (
+    CourseCatalogCourseInfoAdapter,
+    CourseRecord,
+    CourseSource,
 )
 from enrollment.adapters.outbound.in_memory_course_info_adapter import InMemoryCourseInfoAdapter
 from enrollment.adapters.outbound.in_memory_course_offering_repository import (
@@ -41,8 +51,12 @@ from enrollment.adapters.outbound.stub_financial_clearance_adapter import (
 
 __all__ = [
     "BILLING_CLEARANCE_THRESHOLDS",
+    "AcademicRecordsStandingAdapter",
     "BillingFinancialClearanceAdapter",
     "ClearanceThresholds",
+    "CourseCatalogCourseInfoAdapter",
+    "CourseRecord",
+    "CourseSource",
     "InMemoryCourseInfoAdapter",
     "InMemoryCourseOfferingRepository",
     "InMemoryEnrollmentRepository",
@@ -51,4 +65,6 @@ __all__ = [
     "SessionFeeLedger",
     "SessionFeePosition",
     "StubFinancialClearanceAdapter",
+    "StudentRecord",
+    "StudentRecordSource",
 ]

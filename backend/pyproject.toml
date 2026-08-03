@@ -5,12 +5,15 @@ description = "University Management System — hexagonal, seven bounded context
 requires-python = ">=3.12"
 dependencies = [
     "asyncpg>=0.30",
+    "fastapi>=0.115",
     "sqlalchemy[asyncio]>=2.0",
     "tenacity>=9.0",
+    "uvicorn[standard]>=0.32",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28",
     "pytest>=8.3",
     "pytest-asyncio>=1.0",
     "ruff>=0.14",
@@ -22,6 +25,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = [
+    "src/http_api.py",
+    "src/main.py",
     "src/persistence.py",
     "src/academic_records",
     "src/admissions",
