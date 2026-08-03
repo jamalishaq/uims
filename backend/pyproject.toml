@@ -22,6 +22,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = [
+    "src/persistence.py",
     "src/academic_records",
     "src/admissions",
     "src/billing",
