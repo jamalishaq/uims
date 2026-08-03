@@ -11,14 +11,14 @@ class InMemorySessionRepository(SessionRepositoryPort):
     def __init__(self) -> None:
         self._store = InMemoryStore[Session]("session", lambda session: session.session_id)
 
-    def add(self, session: Session) -> None:
+    async def add(self, session: Session) -> None:
         self._store.add(session)
 
-    def save(self, session: Session) -> None:
+    async def save(self, session: Session) -> None:
         self._store.save(session)
 
-    def get(self, session_id: str) -> Session | None:
+    async def get(self, session_id: str) -> Session | None:
         return self._store.get(session_id)
 
-    def list_all(self) -> tuple[Session, ...]:
+    async def list_all(self) -> tuple[Session, ...]:
         return self._store.all()

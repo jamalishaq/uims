@@ -37,7 +37,9 @@ class DepartmentCodePort(ABC):
     """Reads the department code and entry year behind a program and a session."""
 
     @abstractmethod
-    def format_inputs_for(self, program_id: str, session_id: str) -> MatricFormatInputs | None:
+    async def format_inputs_for(
+        self, program_id: str, session_id: str
+    ) -> MatricFormatInputs | None:
         """Return the inputs, or ``None`` if the program or session is not known there.
 
         ``None`` is an answer, not a failure: asking about a program that does not exist

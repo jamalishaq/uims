@@ -1,23 +1,26 @@
 """Wiring for the Student Profile tests.
 
-This module is the swap point. Phase 6 replaces the in-memory adapters with Postgres
-ones, and the requirement is that the application test suite runs unchanged against both
-— so adapter construction happens *only* here, and every fixture is annotated with its
-port type rather than the concrete class. A test that names an adapter directly is a test
-that would have to be rewritten later.
+This module is the swap point, and Phase 6.1 is what it was waiting for. ``students`` and
+``sequences`` now come from ``adapters``, which resolves to the in-memory classes or the
+Postgres ones depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. Adapter
+construction still happens *only* here, and the repository fixture is still annotated with its
+port type rather than the concrete class.
 
-The two exceptions are annotated concretely on purpose: the department-code adapter,
-because tests have to register placements on it, and the sequence repository, because
-some tests read every counter it holds.
+Two fixtures stay concrete on purpose. ``departments`` is the anti-corruption adapter standing
+in for Faculty & Department and tests have to register placements on it, so it is not a
+repository and does not swap. ``sequences`` is annotated concretely because some tests read
+``all()``, which is not on the port — but it *does* swap, because both adapters answer it, and
+the counter is the one place in this system where the Postgres adapter differs from the
+in-memory one in kind rather than in detail.
 """
 
 import pytest
+from tests.conftest import Adapters
 
 from student_profile.adapters.inbound import StudentMatriculatedHandler
 from student_profile.adapters.outbound import (
     InMemoryDepartmentCodeAdapter,
     InMemoryMatricSequenceRepository,
-    InMemoryStudentRepository,
 )
 from student_profile.application import RegisterNewStudent
 from student_profile.domain import MatricNumberIssuer
@@ -36,14 +39,18 @@ MCB_CODE = "0672"
 
 
 @pytest.fixture
-def students() -> StudentRepositoryPort:
-    return InMemoryStudentRepository()
+def students(adapters: Adapters) -> StudentRepositoryPort:
+    return adapters.students()
 
 
 @pytest.fixture
-def sequences() -> InMemoryMatricSequenceRepository:
-    """Concrete on purpose: some tests read every counter that was started."""
-    return InMemoryMatricSequenceRepository()
+def sequences(adapters: Adapters) -> InMemoryMatricSequenceRepository:
+    """Concrete on purpose: some tests read ``all()``, which is not on the port.
+
+    Both adapters answer it, so this still swaps with the backend — the annotation names the
+    in-memory class because that is what a reader needs in order to find ``all()``.
+    """
+    return adapters.sequences()
 
 
 @pytest.fixture

@@ -14,23 +14,23 @@ class InMemoryEnrollmentRepository(EnrollmentRepositoryPort):
             "enrollment", lambda enrollment: enrollment.enrollment_id
         )
 
-    def add(self, enrollment: Enrollment) -> None:
+    async def add(self, enrollment: Enrollment) -> None:
         self._store.add(enrollment)
 
-    def save(self, enrollment: Enrollment) -> None:
+    async def save(self, enrollment: Enrollment) -> None:
         self._store.save(enrollment)
 
-    def get(self, enrollment_id: str) -> Enrollment | None:
+    async def get(self, enrollment_id: str) -> Enrollment | None:
         return self._store.get(enrollment_id)
 
-    def list_for_student_in_term(self, student_id: str, term: Term) -> tuple[Enrollment, ...]:
+    async def list_for_student_in_term(self, student_id: str, term: Term) -> tuple[Enrollment, ...]:
         return tuple(
             enrollment
             for enrollment in self._store.all()
             if enrollment.student_id == student_id and enrollment.term == term
         )
 
-    def has_registered_before(self, student_id: str, course_id: str) -> bool:
+    async def has_registered_before(self, student_id: str, course_id: str) -> bool:
         return any(
             enrollment.student_id == student_id and enrollment.course_id == course_id
             for enrollment in self._store.all()

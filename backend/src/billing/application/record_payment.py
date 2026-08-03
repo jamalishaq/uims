@@ -72,7 +72,7 @@ class RecordPayment:
         self._accounts = accounts
         self._events = events
 
-    def execute(self, command: RecordPaymentCommand) -> PaymentRecorded:
+    async def execute(self, command: RecordPaymentCommand) -> PaymentRecorded:
         """Apply the payment, saving and announcing only if the ledger actually changed.
 
         Raises:
@@ -82,7 +82,7 @@ class RecordPayment:
             BillingError: the amount, the reference or the timestamp is invalid. Domain errors
                 pass through untranslated.
         """
-        account = self._accounts.get(command.party_id)
+        account = await self._accounts.get(command.party_id)
         if account is None:
             raise AccountNotFoundError(
                 f"no billing account is stored for party {command.party_id!r}, so payment "
@@ -97,9 +97,9 @@ class RecordPayment:
 
         applied = isinstance(outcome, PaymentApplied)
         if applied:
-            self._accounts.save(account)
+            await self._accounts.save(account)
             for event in outcome.events:
-                self._events.publish(event)
+                await self._events.publish(event)
 
         return PaymentRecorded(
             party_id=account.party_id,

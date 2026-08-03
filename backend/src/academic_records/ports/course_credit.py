@@ -39,7 +39,7 @@ class CourseCreditPort(ABC):
     """Reads what a course is worth in credit units."""
 
     @abstractmethod
-    def credits_for(self, course_id: str) -> CourseCredits | None:
+    async def credits_for(self, course_id: str) -> CourseCredits | None:
         """Return the course's credit units, or ``None`` if the catalog does not know it.
 
         ``None`` is not a reason to guess. A grade for a course whose worth cannot be

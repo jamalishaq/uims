@@ -10,7 +10,7 @@ class MatricSequenceRepositoryPort(ABC):
     """Persistence for the ``MatricSequence`` aggregate."""
 
     @abstractmethod
-    def get_or_start(
+    async def get_or_start(
         self, department_code: DepartmentCode, entry_year: EntryYear
     ) -> MatricSequence:
         """Return the sequence for this department and year, starting one if there is none.
@@ -27,7 +27,7 @@ class MatricSequenceRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, sequence: MatricSequence) -> None:
+    async def save(self, sequence: MatricSequence) -> None:
         """Persist a sequence whose counter has moved.
 
         Must be called before the student that used the number is stored. If the process
@@ -36,7 +36,9 @@ class MatricSequenceRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, department_code: DepartmentCode, entry_year: EntryYear) -> MatricSequence | None:
+    async def get(
+        self, department_code: DepartmentCode, entry_year: EntryYear
+    ) -> MatricSequence | None:
         """Return the sequence, or ``None`` if this department has admitted nobody that year.
 
         Read-only, for reporting on an intake. Issuance uses :meth:`get_or_start`.

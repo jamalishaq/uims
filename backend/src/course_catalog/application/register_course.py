@@ -34,7 +34,7 @@ class RegisterCourse:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: RegisterCourseCommand) -> Course:
+    async def execute(self, command: RegisterCourseCommand) -> Course:
         """Store and return the new course.
 
         Raises:
@@ -44,7 +44,7 @@ class RegisterCourse:
                 invalid. Domain errors pass through untranslated — the domain already
                 says exactly what went wrong.
         """
-        existing = self._courses.find_by_code(command.code)
+        existing = await self._courses.find_by_code(command.code)
         if existing is not None:
             raise DuplicateCourseCodeError(
                 f"course {existing.course_id} already carries code {existing.code!r}"
@@ -57,5 +57,5 @@ class RegisterCourse:
             command.title,
             command.credit_units,
         )
-        self._courses.add(course)
+        await self._courses.add(course)
         return course

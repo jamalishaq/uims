@@ -81,6 +81,32 @@ class Session:
         """Define a future session. It is not open, so nothing may be graded against it yet."""
         return cls(session_id, academic_year, semesters)
 
+    @classmethod
+    def restore(
+        cls,
+        session_id: str,
+        academic_year: AcademicYear,
+        semesters: Iterable[Semester],
+        status: SessionStatus,
+    ) -> "Session":
+        """Rebuild a session from stored state. A persistence adapter is the only caller.
+
+        The status cannot be reached through :meth:`plan`, because a stored session may
+        already be open or closed and :meth:`open` announces a fact that has already
+        happened — replaying it on load would publish ``SessionOpened`` to a university that
+        opened the session last September.
+
+        This is the same door ``MatricSequence.restore`` opens in Student Profile, and it is
+        kept just as narrow: the argument is checked, so a row carrying a status this class
+        does not recognise is refused here rather than becoming a session in a state no
+        transition could have produced.
+        """
+        if not isinstance(status, SessionStatus):
+            raise InvalidSemesterSetError(f"stored status {status!r} is not a SessionStatus")
+        session = cls(session_id, academic_year, semesters)
+        session._status = status
+        return session
+
     @property
     def session_id(self) -> str:
         return self._session_id

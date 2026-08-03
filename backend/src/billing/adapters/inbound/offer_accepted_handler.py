@@ -62,7 +62,7 @@ class OfferAcceptedHandler:
     def __init__(self, open_account_for_offer: OpenAccountForOffer) -> None:
         self._open_account_for_offer = open_account_for_offer
 
-    def handle(self, message: OfferAcceptedMessage) -> AccountOpened:
+    async def handle(self, message: OfferAcceptedMessage) -> AccountOpened:
         """Open the account and raise both admission charges.
 
         Redelivery is normal, not exceptional: a bus that guarantees at-least-once delivery
@@ -71,7 +71,7 @@ class OfferAcceptedHandler:
         aggregate, where it is an invariant rather than a handler's good manners, and the
         result says ``was_already_open`` so a caller can tell.
         """
-        return self._open_account_for_offer.execute(
+        return await self._open_account_for_offer.execute(
             OpenAccountForOfferCommand(
                 applicant_id=message.applicant_id,
                 program_id=message.program_id,

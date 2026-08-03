@@ -13,13 +13,13 @@ class InMemoryFeeScheduleRepository(FeeScheduleRepositoryPort):
             "fee schedule", lambda schedule: schedule.session_id
         )
 
-    def add(self, schedule: FeeSchedule) -> None:
+    async def add(self, schedule: FeeSchedule) -> None:
         self._store.add(schedule)
 
-    def save(self, schedule: FeeSchedule) -> None:
+    async def save(self, schedule: FeeSchedule) -> None:
         self._store.save(schedule)
 
-    def get(self, session_id: str) -> FeeSchedule | None:
+    async def get(self, session_id: str) -> FeeSchedule | None:
         return self._store.get(session_id)
 
     def all(self) -> tuple[FeeSchedule, ...]:

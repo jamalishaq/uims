@@ -13,16 +13,16 @@ class InMemoryDepartmentRepository(DepartmentRepositoryPort):
             "department", lambda department: department.department_id
         )
 
-    def add(self, department: Department) -> None:
+    async def add(self, department: Department) -> None:
         self._store.add(department)
 
-    def save(self, department: Department) -> None:
+    async def save(self, department: Department) -> None:
         self._store.save(department)
 
-    def get(self, department_id: str) -> Department | None:
+    async def get(self, department_id: str) -> Department | None:
         return self._store.get(department_id)
 
-    def list_for_faculty(self, faculty_id: str) -> tuple[Department, ...]:
+    async def list_for_faculty(self, faculty_id: str) -> tuple[Department, ...]:
         return tuple(
             department for department in self._store.all() if department.faculty_id == faculty_id
         )

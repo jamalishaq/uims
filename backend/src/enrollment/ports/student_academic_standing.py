@@ -27,7 +27,7 @@ class StudentAcademicStandingPort(ABC):
     """Reads which courses a student has passed, and how they are standing."""
 
     @abstractmethod
-    def standing_for(self, student_id: str) -> AcademicStanding | None:
+    async def standing_for(self, student_id: str) -> AcademicStanding | None:
         """Return the student's standing, or ``None`` if no record is held there.
 
         ``None`` is an answer, not a failure, and it is the *common* answer at the moment

@@ -33,3 +33,18 @@ class DuplicateAggregateError(RepositoryError):
 
 class AggregateNotFoundError(RepositoryError):
     """``save`` was called with an identifier the repository never held."""
+
+
+class PersistenceUnavailableError(RepositoryError):
+    """The store could not be reached, and retrying did not help.
+
+    The type CLAUDE.md section 4 names by example: "when retries are exhausted, translate to
+    port-level error types (e.g. ``PersistenceUnavailableError``)". A deadlock, a dropped
+    connection or a statement that overran its timeout is retried three times behind the
+    port; what arrives here is the news that trying again did not work.
+
+    Distinct from the two above because it says nothing about the aggregate. A duplicate id
+    and a missing one are answers about the data — ask again and they will be the same. This
+    one is about the infrastructure, and the same call a minute later may well succeed, which
+    is a different thing for a caller to do about it.
+    """

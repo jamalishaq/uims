@@ -13,11 +13,11 @@ class InMemoryAcademicRecordRepository(AcademicRecordRepositoryPort):
             "academic record", lambda record: record.student_id
         )
 
-    def add(self, record: AcademicRecord) -> None:
+    async def add(self, record: AcademicRecord) -> None:
         self._store.add(record)
 
-    def save(self, record: AcademicRecord) -> None:
+    async def save(self, record: AcademicRecord) -> None:
         self._store.save(record)
 
-    def get(self, student_id: str) -> AcademicRecord | None:
+    async def get(self, student_id: str) -> AcademicRecord | None:
         return self._store.get(student_id)

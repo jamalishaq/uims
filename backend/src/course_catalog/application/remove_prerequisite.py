@@ -30,17 +30,17 @@ class RemovePrerequisite:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: RemovePrerequisiteCommand) -> Course:
+    async def execute(self, command: RemovePrerequisiteCommand) -> Course:
         """Drop the prerequisite and return the amended course.
 
         Raises:
             CourseNotFoundError: no such course is stored.
             PrerequisiteNotRequiredError: the course does not require it.
         """
-        course = self._courses.get(command.course_id)
+        course = await self._courses.get(command.course_id)
         if course is None:
             raise CourseNotFoundError(f"no course stored with id {command.course_id!r}")
 
         course.remove_prerequisite(command.prerequisite_id)
-        self._courses.save(course)
+        await self._courses.save(course)
         return course

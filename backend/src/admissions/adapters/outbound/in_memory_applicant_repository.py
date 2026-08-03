@@ -13,16 +13,16 @@ class InMemoryApplicantRepository(ApplicantRepositoryPort):
             "applicant", lambda applicant: applicant.applicant_id
         )
 
-    def add(self, applicant: Applicant) -> None:
+    async def add(self, applicant: Applicant) -> None:
         self._store.add(applicant)
 
-    def save(self, applicant: Applicant) -> None:
+    async def save(self, applicant: Applicant) -> None:
         self._store.save(applicant)
 
-    def get(self, applicant_id: str) -> Applicant | None:
+    async def get(self, applicant_id: str) -> Applicant | None:
         return self._store.get(applicant_id)
 
-    def list_for_session(self, session_id: str) -> tuple[Applicant, ...]:
+    async def list_for_session(self, session_id: str) -> tuple[Applicant, ...]:
         return tuple(
             applicant for applicant in self._store.all() if applicant.session_id == session_id
         )

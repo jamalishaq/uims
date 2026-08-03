@@ -19,11 +19,11 @@ class InMemoryCourseOfferingRepository(CourseOfferingRepositoryPort):
             "course offering", lambda offering: _key(offering.course_id, offering.term)
         )
 
-    def add(self, offering: CourseOffering) -> None:
+    async def add(self, offering: CourseOffering) -> None:
         self._store.add(offering)
 
-    def save(self, offering: CourseOffering) -> None:
+    async def save(self, offering: CourseOffering) -> None:
         self._store.save(offering)
 
-    def get(self, course_id: str, term: Term) -> CourseOffering | None:
+    async def get(self, course_id: str, term: Term) -> CourseOffering | None:
         return self._store.get(_key(course_id, term))

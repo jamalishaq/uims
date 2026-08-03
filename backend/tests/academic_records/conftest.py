@@ -1,10 +1,11 @@
 """Wiring for the Academic Records tests.
 
-This module is the swap point. Phase 6 replaces the in-memory repository with a Postgres
-one and the course-credit adapter with a client that speaks to Course Catalog, and the
-requirement in both cases is that the application test suite runs unchanged — so adapter
-construction happens *only* here, and the repository fixture is annotated with its port type
-rather than the concrete class.
+This module is the swap point, and Phase 6.1 is the first half of what it was waiting for.
+``records`` now comes from ``adapters``, which resolves to the in-memory repository or the
+Postgres one depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. The course-credit
+adapter still stands in for a client that speaks to Course Catalog, because it is a query port
+and not storage. Adapter construction still happens *only* here, and the repository fixture is
+still annotated with its port type rather than the concrete class.
 
 It is also this context's **composition root**, which is the more interesting half. The
 ``wired_bus`` fixture is the one place in the system where Faculty & Department's publisher
@@ -24,20 +25,18 @@ logic had leaked out of the domain layer (CLAUDE.md section 2).
 """
 
 import pytest
+from tests.conftest import Adapters
 
 from academic_records.adapters.inbound import GRADE_SUBMITTED, GradeSubmittedHandler
-from academic_records.adapters.outbound import (
-    InMemoryAcademicRecordRepository,
-    InMemoryCourseCreditAdapter,
-)
+from academic_records.adapters.outbound import InMemoryCourseCreditAdapter
 from academic_records.application import CorrectGrade, ReadAcademicRecord, RecordSubmittedGrade
 from academic_records.ports import AcademicRecordRepositoryPort
 from faculty_department.adapters.outbound import InMemoryEventBus
 
 
 @pytest.fixture
-def records() -> AcademicRecordRepositoryPort:
-    return InMemoryAcademicRecordRepository()
+def records(adapters: Adapters) -> AcademicRecordRepositoryPort:
+    return adapters.records()
 
 
 @pytest.fixture

@@ -94,17 +94,17 @@ def test_this_modules_secret_is_the_one_the_handler_was_built_with(webhook_secre
 
 
 @pytest.fixture
-def an_admitted_account(accounts: AccountRepositoryPort) -> Account:
+async def an_admitted_account(accounts: AccountRepositoryPort) -> Account:
     """What ``OfferAccepted`` leaves behind: 20,000 gating and 50,000 not."""
     account = Account.open(APPLICANT_ID, PROGRAM_ID)
     account.raise_acceptance_fee(SESSION_2026, Money("20000"))
     account.raise_matriculation_fee(SESSION_2026, Money("50000"))
-    accounts.add(account)
+    await accounts.add(account)
     return account
 
 
 @pytest.fixture
-def an_open_intent(
+async def an_open_intent(
     an_admitted_account: Account, intents: PaymentIntentRepositoryPort
 ) -> PaymentIntent:
     """A checkout for the acceptance fee, opened and awaiting the gateway."""
@@ -114,14 +114,14 @@ def an_open_intent(
         amount=Money("20000"),
         initiated_at=JULY,
     )
-    intents.add(intent)
+    await intents.add(intent)
     return intent
 
 
 class TestSignature:
     """Nothing gets past this, and nothing happens on the way to being refused."""
 
-    def test_a_correctly_signed_request_is_accepted(
+    async def test_a_correctly_signed_request_is_accepted(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -129,12 +129,12 @@ class TestSignature:
     ) -> None:
         body = body_of(a_payload())
 
-        result = payment_webhook.handle(body, sign(body))
+        result = await payment_webhook.handle(body, sign(body))
 
         assert result is not None
         assert an_admitted_account.total_paid == Money("20000")
 
-    def test_a_forged_signature_is_rejected_with_no_side_effects(
+    async def test_a_forged_signature_is_rejected_with_no_side_effects(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -144,14 +144,14 @@ class TestSignature:
         body = body_of(a_payload())
 
         with pytest.raises(WebhookSignatureError):
-            payment_webhook.handle(body, "0" * 128)
+            await payment_webhook.handle(body, "0" * 128)
 
         assert an_admitted_account.payments == (), "no money reached the ledger"
         assert an_admitted_account.total_paid == Money.zero()
         assert an_open_intent.status is PaymentIntentStatus.INITIATED, "the intent did not move"
         assert events.published == (), "nothing was announced"
 
-    def test_a_body_altered_after_signing_is_rejected(
+    async def test_a_body_altered_after_signing_is_rejected(
         self, payment_webhook: PaymentWebhookHandler, an_open_intent: PaymentIntent
     ) -> None:
         """The attack this exists to stop: sign ₦20,000, deliver ₦2,000,000."""
@@ -160,26 +160,26 @@ class TestSignature:
         tampered = body_of(a_payload(data={"amount": 200_000_000}))
 
         with pytest.raises(WebhookSignatureError):
-            payment_webhook.handle(tampered, signature)
+            await payment_webhook.handle(tampered, signature)
 
         assert an_open_intent.status is PaymentIntentStatus.INITIATED
 
     @pytest.mark.parametrize("signature", [None, "", "   "], ids=["absent", "empty", "blank"])
-    def test_a_missing_signature_is_a_rejection_and_not_a_skip(
+    async def test_a_missing_signature_is_a_rejection_and_not_a_skip(
         self, payment_webhook: PaymentWebhookHandler, signature: str | None
     ) -> None:
         with pytest.raises(WebhookSignatureError):
-            payment_webhook.handle(body_of(a_payload()), signature)
+            await payment_webhook.handle(body_of(a_payload()), signature)
 
-    def test_a_signature_from_the_wrong_secret_is_rejected(
+    async def test_a_signature_from_the_wrong_secret_is_rejected(
         self, payment_webhook: PaymentWebhookHandler
     ) -> None:
         body = body_of(a_payload())
 
         with pytest.raises(WebhookSignatureError):
-            payment_webhook.handle(body, sign(body, secret="sk_test_someone_elses_key"))
+            await payment_webhook.handle(body, sign(body, secret="sk_test_someone_elses_key"))
 
-    def test_a_body_that_is_not_even_json_is_rejected_as_a_bad_signature(
+    async def test_a_body_that_is_not_even_json_is_rejected_as_a_bad_signature(
         self, payment_webhook: PaymentWebhookHandler
     ) -> None:
         """**The ordering test.** If verification ever moved after the parse, this goes red.
@@ -188,30 +188,30 @@ class TestSignature:
         been handed to a parser before anybody established the request was from the gateway.
         """
         with pytest.raises(WebhookSignatureError):
-            payment_webhook.handle(b"\x00 not json at all {{{", "0" * 128)
+            await payment_webhook.handle(b"\x00 not json at all {{{", "0" * 128)
 
-    def test_a_correctly_signed_body_that_is_not_json_is_malformed_rather_than_forged(
+    async def test_a_correctly_signed_body_that_is_not_json_is_malformed_rather_than_forged(
         self, payment_webhook: PaymentWebhookHandler
     ) -> None:
         """The other half of the pair: past the signature, the parser is reached after all."""
         body = b"not json at all {{{"
 
         with pytest.raises(MalformedWebhookError):
-            payment_webhook.handle(body, sign(body))
+            await payment_webhook.handle(body, sign(body))
 
     def test_the_verifier_refuses_an_empty_secret(self) -> None:
         """An empty secret verifies nothing while looking exactly like verification."""
         with pytest.raises(ValueError, match="secret"):
             WebhookSignatureVerifier("")
 
-    def test_the_verifier_refuses_a_body_that_is_not_raw_bytes(
+    async def test_the_verifier_refuses_a_body_that_is_not_raw_bytes(
         self, verifier: WebhookSignatureVerifier
     ) -> None:
         """A ``str`` would have to be encoded to be hashed, and that choice is the gap."""
         with pytest.raises(TypeError):
             verifier.verify(json.dumps(a_payload()), "0" * 128)  # type: ignore[arg-type]
 
-    def test_the_header_and_digest_are_construction_arguments(self) -> None:
+    async def test_the_header_and_digest_are_construction_arguments(self) -> None:
         """A second gateway is a second construction, not a second code path."""
         verifier = WebhookSignatureVerifier("s3cret", header="x-other-signature", digest="sha256")
         body = b'{"event":"charge.success"}'
@@ -223,7 +223,7 @@ class TestSignature:
 class TestReplay:
     """At-least-once delivery is what every gateway worth using does."""
 
-    def test_a_replayed_webhook_is_a_no_op(
+    async def test_a_replayed_webhook_is_a_no_op(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -233,8 +233,8 @@ class TestReplay:
         body = body_of(a_payload())
         signature = sign(body)
 
-        first = payment_webhook.handle(body, signature)
-        second = payment_webhook.handle(body, signature)
+        first = await payment_webhook.handle(body, signature)
+        second = await payment_webhook.handle(body, signature)
 
         assert first is not None and second is not None
         assert first.was_replay is False
@@ -243,7 +243,7 @@ class TestReplay:
         assert an_admitted_account.total_paid == Money("20000")
         assert an_open_intent.status is PaymentIntentStatus.CONFIRMED
 
-    def test_the_gating_charge_is_announced_exactly_once(
+    async def test_the_gating_charge_is_announced_exactly_once(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -253,13 +253,13 @@ class TestReplay:
         body = body_of(a_payload())
         signature = sign(body)
 
-        payment_webhook.handle(body, signature)
-        payment_webhook.handle(body, signature)
-        payment_webhook.handle(body, signature)
+        await payment_webhook.handle(body, signature)
+        await payment_webhook.handle(body, signature)
+        await payment_webhook.handle(body, signature)
 
         assert events.published == (AcceptanceFeePaid(applicant_id=APPLICANT_ID),)
 
-    def test_five_deliveries_leave_the_same_balances_as_one(
+    async def test_five_deliveries_leave_the_same_balances_as_one(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -269,7 +269,7 @@ class TestReplay:
         signature = sign(body)
 
         for _ in range(5):
-            payment_webhook.handle(body, signature)
+            await payment_webhook.handle(body, signature)
 
         assert an_admitted_account.total_paid == Money("20000")
         assert an_admitted_account.outstanding == Money("50000"), "the matriculation fee only"
@@ -280,14 +280,14 @@ class TestAmountMismatch:
     """The ledger records what the gateway confirms, never what the intent asked for."""
 
     @pytest.fixture
-    def a_session_bill(
+    async def a_session_bill(
         self, accounts: AccountRepositoryPort, intents: PaymentIntentRepositoryPort
     ) -> Account:
         """One 100,000 session charge and a checkout opened for the whole of it."""
         account = Account.open("app-0002", PROGRAM_ID)
         account.raise_session_fee(SESSION_2026, Money("100000"))
-        accounts.add(account)
-        intents.add(
+        await accounts.add(account)
+        await intents.add(
             PaymentIntent.initiate(
                 reference=SESSION_REF,
                 party_id="app-0002",
@@ -297,7 +297,7 @@ class TestAmountMismatch:
         )
         return account
 
-    def test_a_short_payment_credits_what_arrived_and_leaves_the_charge_unsettled(
+    async def test_a_short_payment_credits_what_arrived_and_leaves_the_charge_unsettled(
         self,
         payment_webhook: PaymentWebhookHandler,
         a_session_bill: Account,
@@ -307,7 +307,7 @@ class TestAmountMismatch:
             a_payload(data={"reference": SESSION_REF, "amount": 6_000_000})
         )  # ₦60,000 against a ₦100,000 intent
 
-        result = payment_webhook.handle(body, sign(body))
+        result = await payment_webhook.handle(body, sign(body))
 
         assert result is not None
         assert result.amount_matched is False
@@ -319,19 +319,19 @@ class TestAmountMismatch:
         assert charge.is_settled is False
         assert a_session_bill.outstanding == Money("40000")
 
-        intent = intents.get(SESSION_REF)
+        intent = await intents.get(SESSION_REF)
         assert intent is not None
         assert intent.status is PaymentIntentStatus.CONFIRMED, "confirmed, but not settled"
         assert intent.amount == Money("100000"), "what was asked for is still on record"
         assert intent.confirmed_amount == Money("60000")
 
-    def test_an_overpayment_becomes_a_credit_balance(
+    async def test_an_overpayment_becomes_a_credit_balance(
         self, payment_webhook: PaymentWebhookHandler, a_session_bill: Account
     ) -> None:
         """Surplus is legal; never assume balance <= charges."""
         body = body_of(a_payload(data={"reference": SESSION_REF, "amount": 12_000_000}))
 
-        result = payment_webhook.handle(body, sign(body))
+        result = await payment_webhook.handle(body, sign(body))
 
         assert result is not None and result.amount_matched is False
         assert a_session_bill.outstanding == Money.zero()
@@ -339,16 +339,16 @@ class TestAmountMismatch:
 
 
 class TestPayloadTranslation:
-    def test_an_unknown_event_is_ignored_without_touching_anything(
+    async def test_an_unknown_event_is_ignored_without_touching_anything(
         self, payment_webhook: PaymentWebhookHandler, an_open_intent: PaymentIntent
     ) -> None:
         """Reconciliation is the safety net that makes silence the safe answer."""
         body = body_of(a_payload(event="charge.dispute.create"))
 
-        assert payment_webhook.handle(body, sign(body)) is None
+        assert await payment_webhook.handle(body, sign(body)) is None
         assert an_open_intent.status is PaymentIntentStatus.INITIATED
 
-    def test_a_reported_failure_moves_the_intent_and_not_the_ledger(
+    async def test_a_reported_failure_moves_the_intent_and_not_the_ledger(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -357,7 +357,7 @@ class TestPayloadTranslation:
     ) -> None:
         body = body_of(a_payload(event="charge.failed"))
 
-        result = payment_webhook.handle(body, sign(body))
+        result = await payment_webhook.handle(body, sign(body))
 
         assert result is not None
         assert result.ledger_outcome is None, "the ledger was not consulted"
@@ -366,7 +366,7 @@ class TestPayloadTranslation:
         assert events.published == ()
         assert an_open_intent.status is PaymentIntentStatus.FAILED
 
-    def test_a_failure_the_gateway_later_contradicts_still_banks_the_money(
+    async def test_a_failure_the_gateway_later_contradicts_still_banks_the_money(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -379,15 +379,15 @@ class TestPayloadTranslation:
         failure never touches the ledger, which the test above holds.
         """
         failed = body_of(a_payload(event="charge.failed"))
-        payment_webhook.handle(failed, sign(failed))
+        await payment_webhook.handle(failed, sign(failed))
 
         succeeded = body_of(a_payload())
         with pytest.raises(PaymentIntentFinalError):
-            payment_webhook.handle(succeeded, sign(succeeded))
+            await payment_webhook.handle(succeeded, sign(succeeded))
 
         assert an_admitted_account.total_paid == Money("20000")
 
-    def test_kobo_becomes_naira_exactly(
+    async def test_kobo_becomes_naira_exactly(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -395,20 +395,20 @@ class TestPayloadTranslation:
     ) -> None:
         body = body_of(a_payload(data={"amount": 2_000_050}))
 
-        payment_webhook.handle(body, sign(body))
+        await payment_webhook.handle(body, sign(body))
 
         assert an_admitted_account.total_paid == Money(Decimal("20000.50"))
 
-    def test_a_fractional_kobo_amount_is_refused(
+    async def test_a_fractional_kobo_amount_is_refused(
         self, payment_webhook: PaymentWebhookHandler, an_open_intent: PaymentIntent
     ) -> None:
         """A JSON number with a decimal point parses as a float, and a float is not money."""
         body = body_of(a_payload(data={"amount": 2_000_000.5}))
 
         with pytest.raises(MalformedWebhookError, match="whole number of kobo"):
-            payment_webhook.handle(body, sign(body))
+            await payment_webhook.handle(body, sign(body))
 
-    def test_the_gateways_timestamp_is_what_the_ledger_records(
+    async def test_the_gateways_timestamp_is_what_the_ledger_records(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -416,11 +416,11 @@ class TestPayloadTranslation:
     ) -> None:
         body = body_of(a_payload())
 
-        payment_webhook.handle(body, sign(body))
+        await payment_webhook.handle(body, sign(body))
 
         assert an_admitted_account.payments[0].received_at == datetime(2026, 7, 1, 10, 30)
 
-    def test_an_offset_carrying_timestamp_keeps_its_offset(
+    async def test_an_offset_carrying_timestamp_keeps_its_offset(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -429,7 +429,7 @@ class TestPayloadTranslation:
         """Normalising it is the sort of helpfulness that dates an entry an hour out."""
         body = body_of(a_payload(data={"paid_at": "2026-07-01T10:30:00.000+01:00"}))
 
-        payment_webhook.handle(body, sign(body))
+        await payment_webhook.handle(body, sign(body))
 
         recorded = an_admitted_account.payments[0].received_at
         assert recorded.utcoffset() is not None
@@ -440,7 +440,7 @@ class TestPayloadTranslation:
         [("reference", ""), ("reference", None), ("paid_at", None), ("amount", "2000000")],
         ids=["blank-reference", "no-reference", "no-timestamp", "amount-as-string"],
     )
-    def test_a_signed_charge_this_cannot_read_is_malformed(
+    async def test_a_signed_charge_this_cannot_read_is_malformed(
         self, payment_webhook: PaymentWebhookHandler, field: str, value: object
     ) -> None:
         """A separate failure from a bad signature: this is the gateway, sending nonsense."""
@@ -456,30 +456,30 @@ class TestPayloadTranslation:
         body = body_of({"event": "charge.success", "data": data})
 
         with pytest.raises(MalformedWebhookError):
-            payment_webhook.handle(body, sign(body))
+            await payment_webhook.handle(body, sign(body))
 
-    def test_a_charge_with_no_data_object_is_malformed(
+    async def test_a_charge_with_no_data_object_is_malformed(
         self, payment_webhook: PaymentWebhookHandler
     ) -> None:
         body = body_of({"event": "charge.success"})
 
         with pytest.raises(MalformedWebhookError):
-            payment_webhook.handle(body, sign(body))
+            await payment_webhook.handle(body, sign(body))
 
 
 class TestUnsolicitedReferences:
-    def test_a_signed_charge_for_a_reference_we_never_issued_is_refused(
+    async def test_a_signed_charge_for_a_reference_we_never_issued_is_refused(
         self, payment_webhook: PaymentWebhookHandler, an_admitted_account: Account
     ) -> None:
         """A valid signature says who sent it, not whose money it is."""
         body = body_of(a_payload(data={"reference": "psk-ref-nobody-opened"}))
 
         with pytest.raises(PaymentIntentNotFoundError):
-            payment_webhook.handle(body, sign(body))
+            await payment_webhook.handle(body, sign(body))
 
         assert an_admitted_account.payments == ()
 
-    def test_the_party_comes_from_the_intent_and_not_the_payload(
+    async def test_the_party_comes_from_the_intent_and_not_the_payload(
         self,
         payment_webhook: PaymentWebhookHandler,
         an_open_intent: PaymentIntent,
@@ -489,10 +489,10 @@ class TestUnsolicitedReferences:
         """A payload naming somebody else's ledger credits the intent's party regardless."""
         somebody_else = Account.open("app-9999", PROGRAM_ID)
         somebody_else.raise_acceptance_fee(SESSION_2026, Money("20000"))
-        accounts.add(somebody_else)
+        await accounts.add(somebody_else)
         body = body_of(a_payload(data={"party_id": "app-9999", "customer": {"id": "app-9999"}}))
 
-        payment_webhook.handle(body, sign(body))
+        await payment_webhook.handle(body, sign(body))
 
         assert an_admitted_account.total_paid == Money("20000")
         assert somebody_else.total_paid == Money.zero()

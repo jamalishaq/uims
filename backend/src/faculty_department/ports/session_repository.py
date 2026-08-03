@@ -9,7 +9,7 @@ class SessionRepositoryPort(ABC):
     """Persistence for the ``Session`` aggregate, its semesters included."""
 
     @abstractmethod
-    def add(self, session: Session) -> None:
+    async def add(self, session: Session) -> None:
         """Store a new session.
 
         Raises:
@@ -17,7 +17,7 @@ class SessionRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, session: Session) -> None:
+    async def save(self, session: Session) -> None:
         """Persist changes to a session that is already stored — an open or close, say.
 
         Raises:
@@ -25,9 +25,9 @@ class SessionRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, session_id: str) -> Session | None:
+    async def get(self, session_id: str) -> Session | None:
         """Return the session, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_all(self) -> tuple[Session, ...]:
+    async def list_all(self) -> tuple[Session, ...]:
         """Every stored session, in the order it was added."""

@@ -26,16 +26,16 @@ class ReinstateCourse:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: ReinstateCourseCommand) -> Course:
+    async def execute(self, command: ReinstateCourseCommand) -> Course:
         """Reinstate the course and return it.
 
         Raises:
             CourseNotFoundError: no such course is stored.
         """
-        course = self._courses.get(command.course_id)
+        course = await self._courses.get(command.course_id)
         if course is None:
             raise CourseNotFoundError(f"no course stored with id {command.course_id!r}")
 
         course.reinstate()
-        self._courses.save(course)
+        await self._courses.save(course)
         return course

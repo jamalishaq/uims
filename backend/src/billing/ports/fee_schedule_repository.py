@@ -16,7 +16,7 @@ class FeeScheduleRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, schedule: FeeSchedule) -> None:
+    async def add(self, schedule: FeeSchedule) -> None:
         """Publish a session's fees.
 
         Raises:
@@ -24,7 +24,7 @@ class FeeScheduleRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, schedule: FeeSchedule) -> None:
+    async def save(self, schedule: FeeSchedule) -> None:
         """Persist changes to a schedule that is already published.
 
         Note that re-publishing at a new figure does not re-price bills already raised: the
@@ -36,7 +36,7 @@ class FeeScheduleRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, session_id: str) -> FeeSchedule | None:
+    async def get(self, session_id: str) -> FeeSchedule | None:
         """Return the session's schedule, or ``None`` if none has been published.
 
         ``None`` means different things to the two callers, and each decides for itself:

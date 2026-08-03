@@ -15,7 +15,7 @@ class CourseOfferingRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, offering: CourseOffering) -> None:
+    async def add(self, offering: CourseOffering) -> None:
         """Open a course for registration this term.
 
         Raises:
@@ -23,7 +23,7 @@ class CourseOfferingRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, offering: CourseOffering) -> None:
+    async def save(self, offering: CourseOffering) -> None:
         """Persist a claimed seat.
 
         Raises:
@@ -31,5 +31,5 @@ class CourseOfferingRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, course_id: str, term: Term) -> CourseOffering | None:
+    async def get(self, course_id: str, term: Term) -> CourseOffering | None:
         """Return the offering, or ``None`` if the course is not being run this term."""

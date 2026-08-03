@@ -78,7 +78,7 @@ class GradeSubmittedHandler:
     def __init__(self, record_submitted_grade: RecordSubmittedGrade) -> None:
         self._record_submitted_grade = record_submitted_grade
 
-    def handle(self, message: GradeSubmittedMessage) -> GradeRecorded:
+    async def handle(self, message: GradeSubmittedMessage) -> GradeRecorded:
         """Record the grade, opening the student's record if this is their first.
 
         Redelivery is normal, not exceptional: a bus that guarantees at-least-once delivery
@@ -86,7 +86,7 @@ class GradeSubmittedHandler:
         lives on the aggregate, where it is an invariant rather than a handler's good
         manners, and the result says ``was_already_recorded`` so a caller can tell.
         """
-        return self._record_submitted_grade.execute(
+        return await self._record_submitted_grade.execute(
             RecordSubmittedGradeCommand(
                 student_id=message.student_id,
                 course_id=message.course_id,
@@ -95,11 +95,11 @@ class GradeSubmittedHandler:
             )
         )
 
-    def on_message(self, payload: Mapping[str, object]) -> None:
+    async def on_message(self, payload: Mapping[str, object]) -> None:
         """Subscribe *this* to a bus: deserialise, then handle.
 
         The signature a transport can call without knowing anything about this context —
         which is what lets the wiring that connects the two be a single line in a
         composition root, importing neither context's event type.
         """
-        self.handle(GradeSubmittedMessage.from_payload(payload))
+        await self.handle(GradeSubmittedMessage.from_payload(payload))

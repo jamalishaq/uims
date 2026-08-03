@@ -24,16 +24,16 @@ class InMemoryPaymentIntentRepository(PaymentIntentRepositoryPort):
             "payment intent", lambda intent: intent.reference
         )
 
-    def add(self, intent: PaymentIntent) -> None:
+    async def add(self, intent: PaymentIntent) -> None:
         self._store.add(intent)
 
-    def save(self, intent: PaymentIntent) -> None:
+    async def save(self, intent: PaymentIntent) -> None:
         self._store.save(intent)
 
-    def get(self, reference: str) -> PaymentIntent | None:
+    async def get(self, reference: str) -> PaymentIntent | None:
         return self._store.get(reference)
 
-    def all_initiated(self) -> tuple[PaymentIntent, ...]:
+    async def all_initiated(self) -> tuple[PaymentIntent, ...]:
         """Every intent the gateway has not yet answered about, in the order opened."""
         return tuple(
             intent for intent in self._store.all() if intent.status is PaymentIntentStatus.INITIATED

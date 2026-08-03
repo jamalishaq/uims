@@ -37,5 +37,5 @@ class InMemoryProgramInfoAdapter(ProgramInfoPort):
             is_admitting=admitting,
         )
 
-    def program_for(self, program_id: str, session_id: str) -> ProgramInfo | None:
+    async def program_for(self, program_id: str, session_id: str) -> ProgramInfo | None:
         return self._programs.get((program_id, session_id))

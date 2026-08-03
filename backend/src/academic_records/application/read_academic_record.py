@@ -50,20 +50,20 @@ class ReadAcademicRecord:
     def __init__(self, records: AcademicRecordRepositoryPort) -> None:
         self._records = records
 
-    def execute(self, student_id: str) -> StudentRecordView:
+    async def execute(self, student_id: str) -> StudentRecordView:
         """Return the student's record.
 
         Raises:
             AcademicRecordNotFoundError: nobody has graded this student yet.
         """
-        view = self.find(student_id)
+        view = await self.find(student_id)
         if view is None:
             raise AcademicRecordNotFoundError(
                 f"no academic record is stored for student {student_id!r}"
             )
         return view
 
-    def find(self, student_id: str) -> StudentRecordView | None:
+    async def find(self, student_id: str) -> StudentRecordView | None:
         """Return the student's record, or ``None`` if nobody has graded them yet.
 
         The form a *port adapter* wants, and the reason both exist. Enrollment's
@@ -71,7 +71,7 @@ class ReadAcademicRecord:
         reads as a fresher rather than a refusal — an exception would make the first
         registration of every student's life run through an error handler.
         """
-        record = self._records.get(student_id)
+        record = await self._records.get(student_id)
         if record is None:
             return None
 

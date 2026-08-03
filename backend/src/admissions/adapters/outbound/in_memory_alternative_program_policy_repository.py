@@ -25,11 +25,11 @@ class InMemoryAlternativeProgramPolicyRepository(AlternativeProgramPolicyReposit
             lambda policy: _key(policy.program_id, policy.session_id),
         )
 
-    def add(self, policy: AlternativeProgramPolicy) -> None:
+    async def add(self, policy: AlternativeProgramPolicy) -> None:
         self._store.add(policy)
 
-    def save(self, policy: AlternativeProgramPolicy) -> None:
+    async def save(self, policy: AlternativeProgramPolicy) -> None:
         self._store.save(policy)
 
-    def get(self, program_id: str, session_id: str) -> AlternativeProgramPolicy | None:
+    async def get(self, program_id: str, session_id: str) -> AlternativeProgramPolicy | None:
         return self._store.get(_key(program_id, session_id))

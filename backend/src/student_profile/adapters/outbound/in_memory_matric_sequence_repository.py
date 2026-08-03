@@ -27,7 +27,7 @@ class InMemoryMatricSequenceRepository(MatricSequenceRepositoryPort):
         self._sequences: dict[SequenceKey, MatricSequence] = {}
         self._lock = threading.Lock()
 
-    def get_or_start(
+    async def get_or_start(
         self, department_code: DepartmentCode, entry_year: EntryYear
     ) -> MatricSequence:
         key = (department_code.value, entry_year.value)
@@ -38,17 +38,23 @@ class InMemoryMatricSequenceRepository(MatricSequenceRepositoryPort):
                 self._sequences[key] = sequence
             return sequence
 
-    def save(self, sequence: MatricSequence) -> None:
+    async def save(self, sequence: MatricSequence) -> None:
         with self._lock:
             if sequence.key not in self._sequences:
                 raise AggregateNotFoundError(f"matric sequence {sequence.key} was never started")
             self._sequences[sequence.key] = sequence
 
-    def get(self, department_code: DepartmentCode, entry_year: EntryYear) -> MatricSequence | None:
+    async def get(
+        self, department_code: DepartmentCode, entry_year: EntryYear
+    ) -> MatricSequence | None:
         with self._lock:
             return self._sequences.get((department_code.value, entry_year.value))
 
-    def all(self) -> tuple[MatricSequence, ...]:
-        """Every sequence started so far. Not on the port: for tests and reporting."""
+    async def all(self) -> tuple[MatricSequence, ...]:
+        """Every sequence started so far. Not on the port: for tests and reporting.
+
+        Asynchronous like every other read here, though a dict needs no await: the Postgres
+        adapter behind the same fixture cannot answer without one, and a method that changed
+        shape with the backend would defeat the swap."""
         with self._lock:
             return tuple(self._sequences.values())

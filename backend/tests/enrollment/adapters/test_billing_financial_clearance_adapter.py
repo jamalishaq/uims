@@ -53,7 +53,7 @@ class FakeSessionFeeLedger:
         )
         return self
 
-    def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
+    async def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
         self.asked.append((party_id, session_id))
         return self._positions.get((party_id, session_id))
 
@@ -81,16 +81,19 @@ class TestFirstSemesterNeedsSeventyPercent:
         ],
         ids=["69%", "70%", "71%"],
     )
-    def test_the_boundary_is_at_seventy(self, settled: Decimal, cleared: bool) -> None:
+    async def test_the_boundary_is_at_seventy(self, settled: Decimal, cleared: bool) -> None:
         """Seventy exactly is enough: the confirmed rule is *at least* 70% (CLAUDE.md 3)."""
-        assert an_adapter(settled).is_cleared_for_registration(STUDENT_ID, FIRST) is cleared
+        assert await an_adapter(settled).is_cleared_for_registration(STUDENT_ID, FIRST) is cleared
 
-    def test_nothing_paid_is_refused(self) -> None:
-        assert an_adapter(Decimal("0.00")).is_cleared_for_registration(STUDENT_ID, FIRST) is False
+    async def test_nothing_paid_is_refused(self) -> None:
+        assert (
+            await an_adapter(Decimal("0.00")).is_cleared_for_registration(STUDENT_ID, FIRST)
+            is False
+        )
 
-    def test_the_whole_fee_clears_first_semester_too(self) -> None:
+    async def test_the_whole_fee_clears_first_semester_too(self) -> None:
         """The 30% may be deferred, not must be."""
-        assert an_adapter(SESSION_FEE).is_cleared_for_registration(STUDENT_ID, FIRST) is True
+        assert await an_adapter(SESSION_FEE).is_cleared_for_registration(STUDENT_ID, FIRST) is True
 
 
 class TestSecondSemesterNeedsAllOfIt:
@@ -102,13 +105,13 @@ class TestSecondSemesterNeedsAllOfIt:
         ],
         ids=["99%", "100%"],
     )
-    def test_the_boundary_is_at_a_hundred(self, settled: Decimal, cleared: bool) -> None:
+    async def test_the_boundary_is_at_a_hundred(self, settled: Decimal, cleared: bool) -> None:
         """The deferred 30% falls due here; a kobo short is short."""
-        assert an_adapter(settled).is_cleared_for_registration(STUDENT_ID, SECOND) is cleared
+        assert await an_adapter(settled).is_cleared_for_registration(STUDENT_ID, SECOND) is cleared
 
-    def test_a_single_kobo_outstanding_refuses(self) -> None:
+    async def test_a_single_kobo_outstanding_refuses(self) -> None:
         settled = SESSION_FEE - Decimal("0.01")
-        assert an_adapter(settled).is_cleared_for_registration(STUDENT_ID, SECOND) is False
+        assert await an_adapter(settled).is_cleared_for_registration(STUDENT_ID, SECOND) is False
 
 
 class TestTheTwoHalvesDisagree:
@@ -124,16 +127,16 @@ class TestTheTwoHalvesDisagree:
         ],
         ids=["69%", "70%", "99%", "100%"],
     )
-    def test_first_semester_clears_where_second_refuses(
+    async def test_first_semester_clears_where_second_refuses(
         self, settled: Decimal, first: bool, second: bool
     ) -> None:
         adapter = an_adapter(settled)
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is first
-        assert adapter.is_cleared_for_registration(STUDENT_ID, SECOND) is second
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is first
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, SECOND) is second
 
 
 class TestTheComparisonIsExact:
-    def test_a_fee_that_does_not_divide_is_not_rounded_into_clearance(self) -> None:
+    async def test_a_fee_that_does_not_divide_is_not_rounded_into_clearance(self) -> None:
         """70% of 100,000.01 is 70,000.007 — payable only by rounding, which is not paying.
 
         An implementation dividing and quantizing to kobo would read this as exactly 70% and
@@ -141,52 +144,54 @@ class TestTheComparisonIsExact:
         reason the adapter's docstring says not to simplify the comparison.
         """
         adapter = an_adapter(Decimal("70000.00"), charged=Decimal("100000.01"))
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
 
-    def test_a_kobo_more_clears_it(self) -> None:
+    async def test_a_kobo_more_clears_it(self) -> None:
         adapter = an_adapter(Decimal("70000.01"), charged=Decimal("100000.01"))
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is True
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is True
 
 
 class TestNothingOnRecordIsRefused:
     """Three different absences, one answer, decided with the user rather than inferred."""
 
-    def test_a_party_with_no_ledger_is_not_cleared(self) -> None:
-        assert an_adapter().is_cleared_for_registration(STUDENT_ID, FIRST) is False
+    async def test_a_party_with_no_ledger_is_not_cleared(self) -> None:
+        assert await an_adapter().is_cleared_for_registration(STUDENT_ID, FIRST) is False
 
-    def test_a_ledger_without_this_session_is_not_cleared(self) -> None:
+    async def test_a_ledger_without_this_session_is_not_cleared(self) -> None:
         """A fee paid in full for last session says nothing about this one."""
         ledger = FakeSessionFeeLedger().record(
             STUDENT_ID, "sess-2025", charged=SESSION_FEE, settled=SESSION_FEE
         )
         adapter = BillingFinancialClearanceAdapter(ledger)
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
 
-    def test_somebody_elses_settled_fee_does_not_clear_this_student(self) -> None:
+    async def test_somebody_elses_settled_fee_does_not_clear_this_student(self) -> None:
         ledger = FakeSessionFeeLedger().record(
             "stu-260591002", SESSION_ID, charged=SESSION_FEE, settled=SESSION_FEE
         )
         adapter = BillingFinancialClearanceAdapter(ledger)
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is False
 
-    def test_the_answer_is_a_bool_and_not_something_bool_shaped(self) -> None:
+    async def test_the_answer_is_a_bool_and_not_something_bool_shaped(self) -> None:
         """The port promises a boolean; a caller may not be handed a truthy Decimal."""
-        answer = an_adapter(SESSION_FEE).is_cleared_for_registration(STUDENT_ID, FIRST)
+        answer = await an_adapter(SESSION_FEE).is_cleared_for_registration(STUDENT_ID, FIRST)
         assert isinstance(answer, bool)
 
 
 class TestWhatTheLedgerIsAsked:
-    def test_it_is_asked_for_the_session_never_the_semester(self) -> None:
+    async def test_it_is_asked_for_the_session_never_the_semester(self) -> None:
         """A fee is charged per session. Asking per semester would demand two bills."""
         ledger = FakeSessionFeeLedger()
         adapter = BillingFinancialClearanceAdapter(ledger)
-        adapter.is_cleared_for_registration(STUDENT_ID, SECOND)
+        await adapter.is_cleared_for_registration(STUDENT_ID, SECOND)
         assert ledger.asked == [(STUDENT_ID, SESSION_ID)]
 
-    def test_the_student_id_crosses_as_the_party_id_untranslated(self) -> None:
+    async def test_the_student_id_crosses_as_the_party_id_untranslated(self) -> None:
         """Billing resolves either id to one ledger, so a matric number is a party-id there."""
         ledger = FakeSessionFeeLedger()
-        BillingFinancialClearanceAdapter(ledger).is_cleared_for_registration("260591001", FIRST)
+        await BillingFinancialClearanceAdapter(ledger).is_cleared_for_registration(
+            "260591001", FIRST
+        )
         assert ledger.asked == [("260591001", SESSION_ID)]
 
 
@@ -202,12 +207,12 @@ class TestThePercentagesAreAConstructionArgument:
         ],
         ids=["49%", "50%", "80%"],
     )
-    def test_a_fifty_eighty_rule_moves_both_boundaries(
+    async def test_a_fifty_eighty_rule_moves_both_boundaries(
         self, settled: Decimal, first: bool, second: bool
     ) -> None:
         adapter = an_adapter(settled, thresholds=ClearanceThresholds(Decimal("50"), Decimal("80")))
-        assert adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is first
-        assert adapter.is_cleared_for_registration(STUDENT_ID, SECOND) is second
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, FIRST) is first
+        assert await adapter.is_cleared_for_registration(STUDENT_ID, SECOND) is second
 
     def test_the_confirmed_rule_is_the_default(self) -> None:
         assert BILLING_CLEARANCE_THRESHOLDS.first_semester_percent == Decimal("70")

@@ -1,15 +1,16 @@
 """Wiring for the Course Catalog tests.
 
-This module is the swap point. Phase 6 replaces the in-memory adapter with a Postgres
-one, and the requirement is that the application test suite runs unchanged against
-both — so adapter construction happens *only* here, and every fixture is annotated with
-its port type rather than the concrete class. A test that names an adapter directly is
-a test that would have to be rewritten later.
+This module is the swap point, and Phase 6.1 is what it was waiting for. ``courses`` now
+comes from ``adapters``, which resolves to the in-memory class or the Postgres one depending
+on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. Adapter construction still happens *only*
+here, and every fixture is still annotated with its port type rather than the concrete class.
+A test that names an adapter directly is a test that would have to be rewritten later; not one
+in this context did, which is why not one of them changed.
 """
 
 import pytest
+from tests.conftest import Adapters
 
-from course_catalog.adapters.outbound import InMemoryCourseRepository
 from course_catalog.application import (
     AddPrerequisite,
     AmendCourse,
@@ -25,8 +26,8 @@ from course_catalog.ports import CourseRepositoryPort
 
 
 @pytest.fixture
-def courses() -> CourseRepositoryPort:
-    return InMemoryCourseRepository()
+def courses(adapters: Adapters) -> CourseRepositoryPort:
+    return adapters.courses()
 
 
 @pytest.fixture

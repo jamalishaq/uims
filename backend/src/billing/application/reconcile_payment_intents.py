@@ -104,7 +104,7 @@ class ReconcilePaymentIntents:
         self._gateway = gateway
         self._confirm_payment = confirm_payment
 
-    def execute(self, now: datetime) -> ReconciliationSwept:
+    async def execute(self, now: datetime) -> ReconciliationSwept:
         """Sweep every open intent that has outlived its TTL as of ``now``.
 
         ``now`` is an argument because nothing in this system reads a clock: an instant handed
@@ -112,12 +112,12 @@ class ReconcilePaymentIntents:
         hour, and a scheduler that wants to re-run yesterday's sweep can.
         """
         tally = _Tally()
-        for intent in self._intents.all_initiated():
+        for intent in await self._intents.all_initiated():
             if not intent.has_expired(now):
                 tally.skipped += 1
                 continue
             tally.examined += 1
-            self._reconcile(intent, now, tally)
+            await self._reconcile(intent, now, tally)
 
         return ReconciliationSwept(
             examined=tally.examined,
@@ -129,10 +129,10 @@ class ReconcilePaymentIntents:
             unreachable=tuple(tally.unreachable),
         )
 
-    def _reconcile(self, intent: PaymentIntent, now: datetime, tally: _Tally) -> None:
+    async def _reconcile(self, intent: PaymentIntent, now: datetime, tally: _Tally) -> None:
         """Ask about one intent and act on the answer. Never raises for an unreachable gateway."""
         try:
-            verification = self._gateway.verify(intent.reference)
+            verification = await self._gateway.verify(intent.reference)
         except PaymentGatewayUnavailableError:
             # An unanswered question, not a negative answer. The intent stays open and the
             # next sweep asks again; writing it off on the strength of a network failure is
@@ -141,19 +141,19 @@ class ReconcilePaymentIntents:
             return
 
         if verification.status is GatewayStatus.SUCCESS:
-            self._confirm(intent, verification, now)
+            await self._confirm(intent, verification, now)
             tally.confirmed.append(intent.reference)
         elif verification.status is GatewayStatus.FAILED:
-            self._fail(intent, now)
+            await self._fail(intent, now)
             tally.failed.append(intent.reference)
         elif verification.status is GatewayStatus.PENDING:
             tally.pending.append(intent.reference)
         else:
             intent.abandon(verified=verification, at=now)
-            self._intents.save(intent)
+            await self._intents.save(intent)
             tally.abandoned.append(intent.reference)
 
-    def _confirm(
+    async def _confirm(
         self, intent: PaymentIntent, verification: GatewayVerification, now: datetime
     ) -> None:
         """Bank a payment the webhook never told us about.
@@ -176,7 +176,7 @@ class ReconcilePaymentIntents:
             raise InvalidPaymentIntentError(
                 f"the gateway reports {intent.reference} as paid without saying how much"
             )
-        self._confirm_payment.execute(
+        await self._confirm_payment.execute(
             ConfirmPaymentCommand(
                 reference=intent.reference,
                 paid_at=verification.paid_at or now,
@@ -185,9 +185,9 @@ class ReconcilePaymentIntents:
             )
         )
 
-    def _fail(self, intent: PaymentIntent, now: datetime) -> None:
+    async def _fail(self, intent: PaymentIntent, now: datetime) -> None:
         """Record a failure the gateway states outright. No money moved, so no ledger entry."""
-        self._confirm_payment.execute(
+        await self._confirm_payment.execute(
             ConfirmPaymentCommand(
                 reference=intent.reference,
                 paid_at=now,

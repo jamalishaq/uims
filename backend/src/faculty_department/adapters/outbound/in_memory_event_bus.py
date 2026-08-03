@@ -21,24 +21,29 @@ is exactly the thing that cannot cross a context boundary. Subscribing is theref
 ``bus.subscribe("GradeSubmitted", handler)``, and neither side imports the other — which is
 the whole reason the wiring can live in a composition root that imports both.
 
-Delivery is synchronous, in subscription order, in the publisher's own call stack. A
-subscriber that raises takes the publish call down with it, and that is deliberate for an
-in-memory bus: swallowing the failure would report a grade as published that no record ever
-received. A real broker retries and dead-letters instead, and *that* is the behaviour Phase
-6 buys when this class is replaced.
+Delivery is sequential, in subscription order, awaited in the publisher's own coroutine —
+not fanned out with ``gather``. A subscriber that raises takes the publish call down with
+it, and that is deliberate for an in-memory bus: swallowing the failure would report a
+grade as published that no record ever received, and concurrent delivery would leave the
+publisher unable to say which subscriber failed first. A real broker retries and
+dead-letters instead, and *that* is the behaviour Phase 6 buys when this class is replaced.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import asdict
 
 from faculty_department.domain.events import DomainEvent
 from faculty_department.ports.event_publisher import EventPublisherPort
 
-Subscriber = Callable[[Mapping[str, object]], None]
+Subscriber = Callable[[Mapping[str, object]], Awaitable[None]]
 """What a listener looks like from here: something that takes a payload and returns nothing.
 
 Deliberately not a type from any context. A bus that spoke in domain types would be a bus
 only this context could publish to and only a context importing it could subscribe to.
+
+Awaitable, because a subscriber that records a grade reaches a repository to do it, and
+every repository port in this system is asynchronous. The bus still knows nothing about who
+listens or what they do — only that doing it may take a turn of the event loop.
 """
 
 
@@ -58,12 +63,12 @@ class InMemoryEventBus(EventPublisherPort):
         """
         self._subscribers.setdefault(event_name, []).append(subscriber)
 
-    def publish(self, event: DomainEvent) -> None:
+    async def publish(self, event: DomainEvent) -> None:
         """Serialise ``event`` and hand it to every subscriber, in subscription order."""
         self._published.append(event)
         payload = asdict(event)
         for subscriber in self._subscribers.get(type(event).__name__, ()):
-            subscriber(payload)
+            await subscriber(payload)
 
     @property
     def published(self) -> tuple[DomainEvent, ...]:

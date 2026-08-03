@@ -63,7 +63,7 @@ class InitiatePayment:
         self._accounts = accounts
         self._intents = intents
 
-    def execute(self, command: InitiatePaymentCommand) -> PaymentInitiated:
+    async def execute(self, command: InitiatePaymentCommand) -> PaymentInitiated:
         """Open the intent, refusing a party with no ledger to eventually credit.
 
         The intent is keyed by the party's *stored* id rather than the one the caller quoted,
@@ -82,7 +82,7 @@ class InitiatePayment:
                 make the ledger's idempotency key ambiguous.
             BillingError: the amount, the reference or the timestamp is invalid.
         """
-        account = self._accounts.get(command.party_id)
+        account = await self._accounts.get(command.party_id)
         if account is None:
             raise AccountNotFoundError(
                 f"no billing account is stored for party {command.party_id!r}, so payment "
@@ -96,5 +96,5 @@ class InitiatePayment:
             initiated_at=command.initiated_at,
             ttl=command.ttl,
         )
-        self._intents.add(intent)
+        await self._intents.add(intent)
         return PaymentInitiated(party_id=account.party_id, intent=intent)

@@ -34,7 +34,7 @@ class AmendCourse:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: AmendCourseCommand) -> Course:
+    async def execute(self, command: AmendCourseCommand) -> Course:
         """Apply the amendments and return the course.
 
         Raises:
@@ -42,7 +42,7 @@ class AmendCourse:
             CourseCatalogError: one of the new values is invalid. Nothing is saved when
                 that happens, so a rejected amendment leaves the catalog untouched.
         """
-        course = self._courses.get(command.course_id)
+        course = await self._courses.get(command.course_id)
         if course is None:
             raise CourseNotFoundError(f"no course stored with id {command.course_id!r}")
 
@@ -53,5 +53,5 @@ class AmendCourse:
         if command.department_id is not None:
             course.transfer_to_department(command.department_id)
 
-        self._courses.save(course)
+        await self._courses.save(course)
         return course

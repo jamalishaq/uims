@@ -66,70 +66,70 @@ def program_admitting(programs: InMemoryProgramInfoAdapter) -> None:
 
 @pytest.mark.usefixtures("program_admitting")
 class TestSubmittingToAnOpenProgram:
-    def test_the_application_starts_with_nothing_decided(
+    async def test_the_application_starts_with_nothing_decided(
         self, submit_application: SubmitApplication
     ) -> None:
-        applicant = submit_application.execute(a_command())
+        applicant = await submit_application.execute(a_command())
 
         assert applicant.status is ApplicationStatus.APPLIED
         assert applicant.offered_program_id is None
         assert applicant.is_fee_cleared is False
 
-    def test_the_program_applied_for_is_the_one_on_the_form(
+    async def test_the_program_applied_for_is_the_one_on_the_form(
         self, submit_application: SubmitApplication
     ) -> None:
-        applicant = submit_application.execute(a_command())
+        applicant = await submit_application.execute(a_command())
 
         assert applicant.applied_program_id == PROGRAM_ID
         assert applicant.session_id == SESSION_ID
 
-    def test_the_form_becomes_value_objects_the_domain_owns(
+    async def test_the_form_becomes_value_objects_the_domain_owns(
         self, submit_application: SubmitApplication
     ) -> None:
         """Primitives in, aggregate out: the caller never constructs a ``UtmeResult``."""
-        applicant = submit_application.execute(a_command())
+        applicant = await submit_application.execute(a_command())
 
         assert applicant.bio_data.full_name == "Adaeze Okonkwo"
         assert applicant.utme_result.aggregate == 275
         assert applicant.utme_result.score_for("PHYSICS") == 70
 
-    def test_the_application_is_stored(
+    async def test_the_application_is_stored(
         self, submit_application: SubmitApplication, applicants: ApplicantRepositoryPort
     ) -> None:
-        applicant = submit_application.execute(a_command())
+        applicant = await submit_application.execute(a_command())
 
-        assert applicants.get(APPLICANT_ID) is applicant
+        assert await applicants.get(APPLICANT_ID) is applicant
 
-    def test_a_second_application_under_the_same_id_is_refused(
+    async def test_a_second_application_under_the_same_id_is_refused(
         self, submit_application: SubmitApplication
     ) -> None:
-        submit_application.execute(a_command())
+        await submit_application.execute(a_command())
 
         with pytest.raises(DuplicateAggregateError):
-            submit_application.execute(a_command())
+            await submit_application.execute(a_command())
 
 
 class TestSubmittingToAProgramThatWillNotTakeIt:
-    def test_a_program_faculty_and_department_does_not_know_is_refused(
+    async def test_a_program_faculty_and_department_does_not_know_is_refused(
         self, submit_application: SubmitApplication
     ) -> None:
         with pytest.raises(ProgramNotFoundError):
-            submit_application.execute(a_command())
+            await submit_application.execute(a_command())
 
-    def test_a_program_that_exists_but_is_closed_is_a_different_refusal(
+    async def test_a_program_that_exists_but_is_closed_is_a_different_refusal(
         self, submit_application: SubmitApplication, programs: InMemoryProgramInfoAdapter
     ) -> None:
         """A typo and a missed deadline are not the same thing to say to an applicant."""
         programs.register(PROGRAM_ID, SESSION_ID, admitting=False)
 
         with pytest.raises(ProgramNotAdmittingError):
-            submit_application.execute(a_command())
+            await submit_application.execute(a_command())
 
     @pytest.mark.parametrize(
         "admitting",
         [pytest.param(True, id="admitting"), pytest.param(False, id="closed")],
     )
-    def test_nothing_is_stored_when_the_program_is_wrong(
+    async def test_nothing_is_stored_when_the_program_is_wrong(
         self,
         submit_application: SubmitApplication,
         applicants: ApplicantRepositoryPort,
@@ -139,64 +139,68 @@ class TestSubmittingToAProgramThatWillNotTakeIt:
         programs.register(PROGRAM_ID, OTHER_SESSION_ID, admitting=admitting)
 
         with pytest.raises((ProgramNotFoundError, ProgramNotAdmittingError)):
-            submit_application.execute(a_command())
+            await submit_application.execute(a_command())
 
-        assert applicants.get(APPLICANT_ID) is None
+        assert await applicants.get(APPLICANT_ID) is None
 
-    def test_the_program_is_checked_for_the_session_applied_for(
+    async def test_the_program_is_checked_for_the_session_applied_for(
         self, submit_application: SubmitApplication, programs: InMemoryProgramInfoAdapter
     ) -> None:
         """Admitting next year is not admitting this year."""
         programs.register(PROGRAM_ID, OTHER_SESSION_ID, admitting=True)
 
         with pytest.raises(ProgramNotFoundError):
-            submit_application.execute(a_command())
+            await submit_application.execute(a_command())
 
 
 class TestAFormThatCouldNotBeAnApplication:
     """The domain's refusals, raised before Faculty & Department is troubled at all."""
 
-    def test_a_result_with_the_wrong_number_of_subjects_is_refused(
+    async def test_a_result_with_the_wrong_number_of_subjects_is_refused(
         self, submit_application: SubmitApplication
     ) -> None:
         with pytest.raises(InvalidUtmeResultError):
-            submit_application.execute(a_command(utme_scores=UTME_SCORES[:3]))
+            await submit_application.execute(a_command(utme_scores=UTME_SCORES[:3]))
 
-    def test_a_repeated_subject_is_refused(self, submit_application: SubmitApplication) -> None:
+    async def test_a_repeated_subject_is_refused(
+        self, submit_application: SubmitApplication
+    ) -> None:
         with pytest.raises(InvalidUtmeResultError):
-            submit_application.execute(a_command(utme_scores=(*UTME_SCORES[:3], ("PHYSICS", 55))))
+            await submit_application.execute(
+                a_command(utme_scores=(*UTME_SCORES[:3], ("PHYSICS", 55)))
+            )
 
-    def test_a_score_outside_the_permitted_range_is_refused(
+    async def test_a_score_outside_the_permitted_range_is_refused(
         self, submit_application: SubmitApplication
     ) -> None:
         with pytest.raises(InvalidUtmeScoreError):
-            submit_application.execute(
+            await submit_application.execute(
                 a_command(utme_scores=(*UTME_SCORES[:3], ("CHEMISTRY", 101)))
             )
 
-    def test_a_blank_name_is_refused(self, submit_application: SubmitApplication) -> None:
+    async def test_a_blank_name_is_refused(self, submit_application: SubmitApplication) -> None:
         with pytest.raises(MissingIdentifierError):
-            submit_application.execute(a_command(full_name="   "))
+            await submit_application.execute(a_command(full_name="   "))
 
-    def test_a_date_of_birth_in_the_future_is_refused(
+    async def test_a_date_of_birth_in_the_future_is_refused(
         self, submit_application: SubmitApplication
     ) -> None:
         with pytest.raises(InvalidBioDataError):
-            submit_application.execute(a_command(date_of_birth=date(2999, 1, 1)))
+            await submit_application.execute(a_command(date_of_birth=date(2999, 1, 1)))
 
-    def test_a_blank_applicant_id_is_refused(
+    async def test_a_blank_applicant_id_is_refused(
         self, submit_application: SubmitApplication, programs: InMemoryProgramInfoAdapter
     ) -> None:
         programs.register(PROGRAM_ID, SESSION_ID, admitting=True)
 
         with pytest.raises(MissingIdentifierError):
-            submit_application.execute(a_command(applicant_id=""))
+            await submit_application.execute(a_command(applicant_id=""))
 
-    def test_a_malformed_form_is_refused_without_asking_about_the_program(
+    async def test_a_malformed_form_is_refused_without_asking_about_the_program(
         self, submit_application: SubmitApplication, applicants: ApplicantRepositoryPort
     ) -> None:
         """No program was ever registered here: the local judgement runs first, and is enough."""
         with pytest.raises(InvalidUtmeResultError):
-            submit_application.execute(a_command(utme_scores=()))
+            await submit_application.execute(a_command(utme_scores=()))
 
-        assert applicants.get(APPLICANT_ID) is None
+        assert await applicants.get(APPLICANT_ID) is None

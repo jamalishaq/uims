@@ -37,7 +37,7 @@ class StubFinancialClearanceAdapter(FinancialClearancePort):
         """Record that Billing would clear this student for this term."""
         self._overrides[self._key(student_id, term)] = True
 
-    def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
+    async def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
         return self._overrides.get(self._key(student_id, term), self._cleared_by_default)
 
     @staticmethod

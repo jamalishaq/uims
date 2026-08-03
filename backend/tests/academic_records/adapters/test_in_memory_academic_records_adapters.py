@@ -8,7 +8,6 @@ client behind the credit adapter.
 import pytest
 
 from academic_records.adapters.outbound import (
-    InMemoryAcademicRecordRepository,
     InMemoryCourseCreditAdapter,
 )
 from academic_records.domain import (
@@ -36,52 +35,52 @@ def a_record(student_id: str = STUDENT_ID) -> AcademicRecord:
 # ---- the repository ----
 
 
-def test_a_stored_record_comes_back(records: AcademicRecordRepositoryPort) -> None:
-    records.add(a_record())
-    stored = records.get(STUDENT_ID)
+async def test_a_stored_record_comes_back(records: AcademicRecordRepositoryPort) -> None:
+    await records.add(a_record())
+    stored = await records.get(STUDENT_ID)
     assert stored is not None
     assert stored.student_id == STUDENT_ID
 
 
-def test_a_student_nobody_has_graded_answers_none(
+async def test_a_student_nobody_has_graded_answers_none(
     records: AcademicRecordRepositoryPort,
 ) -> None:
     """Absence is a normal answer, and here it is the usual one."""
-    assert records.get("stu-nobody") is None
+    assert await records.get("stu-nobody") is None
 
 
-def test_adding_a_second_record_for_the_same_student_is_refused(
+async def test_adding_a_second_record_for_the_same_student_is_refused(
     records: AcademicRecordRepositoryPort,
 ) -> None:
     """One record per student. Under Postgres this is the unique constraint on the key."""
-    records.add(a_record())
+    await records.add(a_record())
     with pytest.raises(DuplicateAggregateError, match=STUDENT_ID):
-        records.add(a_record())
+        await records.add(a_record())
 
 
-def test_saving_a_record_that_was_never_added_is_refused(
+async def test_saving_a_record_that_was_never_added_is_refused(
     records: AcademicRecordRepositoryPort,
 ) -> None:
     with pytest.raises(AggregateNotFoundError, match=STUDENT_ID):
-        records.save(a_record())
+        await records.save(a_record())
 
 
-def test_saving_persists_a_change(records: AcademicRecordRepositoryPort) -> None:
+async def test_saving_persists_a_change(records: AcademicRecordRepositoryPort) -> None:
     record = a_record()
-    records.add(record)
+    await records.add(record)
     record.record_grade(course_id="MTH101", semester_id="sem-2026-1", score=62, credit_units=4)
-    records.save(record)
+    await records.save(record)
 
-    stored = records.get(STUDENT_ID)
+    stored = await records.get(STUDENT_ID)
     assert stored is not None
     assert len(stored.grades) == 2
 
 
-def test_records_are_kept_apart_by_student(records: AcademicRecordRepositoryPort) -> None:
-    records.add(a_record("stu-a"))
-    records.add(a_record("stu-b"))
-    assert records.get("stu-a").student_id == "stu-a"  # type: ignore[union-attr]
-    assert records.get("stu-b").student_id == "stu-b"  # type: ignore[union-attr]
+async def test_records_are_kept_apart_by_student(records: AcademicRecordRepositoryPort) -> None:
+    await records.add(a_record("stu-a"))
+    await records.add(a_record("stu-b"))
+    assert (await records.get("stu-a")).student_id == "stu-a"  # type: ignore[union-attr]
+    assert (await records.get("stu-b")).student_id == "stu-b"  # type: ignore[union-attr]
 
 
 def test_the_repository_offers_no_way_to_delete_a_record(
@@ -95,22 +94,22 @@ def test_the_repository_offers_no_way_to_delete_a_record(
 # ---- the course-credit adapter ----
 
 
-def test_a_registered_course_answers_its_units(courses: InMemoryCourseCreditAdapter) -> None:
+async def test_a_registered_course_answers_its_units(courses: InMemoryCourseCreditAdapter) -> None:
     courses.register("CSC101", credit_units=3)
-    assert courses.credits_for("CSC101") == CourseCredits(course_id="CSC101", credit_units=3)
+    assert await courses.credits_for("CSC101") == CourseCredits(course_id="CSC101", credit_units=3)
 
 
-def test_a_course_the_catalog_does_not_know_answers_none(
+async def test_a_course_the_catalog_does_not_know_answers_none(
     courses: InMemoryCourseCreditAdapter,
 ) -> None:
-    assert courses.credits_for("PHY999") is None
+    assert await courses.credits_for("PHY999") is None
 
 
-def test_re_registering_a_course_re_values_it(courses: InMemoryCourseCreditAdapter) -> None:
+async def test_re_registering_a_course_re_values_it(courses: InMemoryCourseCreditAdapter) -> None:
     """A catalog amendment. It changes *future* lines only — recorded ones hold a snapshot."""
     courses.register("CSC101", credit_units=3)
     courses.register("CSC101", credit_units=4)
-    assert courses.credits_for("CSC101").credit_units == 4  # type: ignore[union-attr]
+    assert (await courses.credits_for("CSC101")).credit_units == 4  # type: ignore[union-attr]
 
 
 @pytest.mark.parametrize("units", [0, -1, 3.5, True])
@@ -129,12 +128,12 @@ def test_a_course_registered_without_an_id_is_refused(
         courses.register("  ", credit_units=3)
 
 
-def test_the_adapter_carries_no_retirement_flag(courses: InMemoryCourseCreditAdapter) -> None:
+async def test_the_adapter_carries_no_retirement_flag(courses: InMemoryCourseCreditAdapter) -> None:
     """Deliberate. A retired course must keep resolving here: transcripts refer to courses
     no longer taught, which is why Course Catalog retires them instead of deleting them.
     """
     courses.register("CSC101", credit_units=3)
-    facts = courses.credits_for("CSC101")
+    facts = await courses.credits_for("CSC101")
     assert facts is not None
     assert not hasattr(facts, "is_active")
     assert not hasattr(courses, "retire")
@@ -147,5 +146,12 @@ def test_the_adapter_is_a_course_credit_port(courses: InMemoryCourseCreditAdapte
 def test_the_repository_is_an_academic_record_repository_port(
     records: AcademicRecordRepositoryPort,
 ) -> None:
-    assert isinstance(records, InMemoryAcademicRecordRepository)
+    """What the name says, and now only that.
+
+    This asserted ``isinstance(records, InMemoryAcademicRecordRepository)`` as well, which was
+    the one place in the whole suite where a swappable fixture was pinned to a storage. Phase
+    6.1 is the swap those fixtures were annotated for, and the concrete assertion is exactly
+    the coupling every conftest in this tree warns against — "a test that names an adapter
+    directly is a test that would have to be rewritten later". This is later.
+    """
     assert isinstance(records, AcademicRecordRepositoryPort)

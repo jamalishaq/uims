@@ -9,11 +9,12 @@ from this context's domain, and that a subscriber's failure is not swallowed.
 Academic Records on the end of it.
 """
 
+from collections.abc import Mapping
 from dataclasses import FrozenInstanceError
 
 import pytest
 
-from faculty_department.adapters.outbound import InMemoryEventBus
+from faculty_department.adapters.outbound import InMemoryEventBus, Subscriber
 from faculty_department.domain import AcademicYear, GradeSubmitted, SessionOpened
 from faculty_department.ports import EventPublisherPort
 
@@ -33,6 +34,29 @@ def a_grade(**overrides: object) -> GradeSubmitted:
     return GradeSubmitted(**fields)  # type: ignore[arg-type]
 
 
+def recording(into: list[object]) -> Subscriber:
+    """A subscriber that appends whatever it is handed.
+
+    A coroutine rather than ``list.append`` itself, because a real subscriber reaches a
+    repository and every repository port here is asynchronous. What is being tested is
+    unchanged: which payloads arrive, and in what order.
+    """
+
+    async def subscriber(payload: Mapping[str, object]) -> None:
+        into.append(payload)
+
+    return subscriber
+
+
+def noting(into: list[str], mark: str) -> Subscriber:
+    """A subscriber that records only that it ran, for the ordering test."""
+
+    async def subscriber(_: Mapping[str, object]) -> None:
+        into.append(mark)
+
+    return subscriber
+
+
 @pytest.fixture
 def bus() -> InMemoryEventBus:
     return InMemoryEventBus()
@@ -43,11 +67,11 @@ def test_the_bus_is_an_event_publisher_port(bus: InMemoryEventBus) -> None:
     assert isinstance(bus, EventPublisherPort)
 
 
-def test_a_subscriber_receives_what_is_published(bus: InMemoryEventBus) -> None:
+async def test_a_subscriber_receives_what_is_published(bus: InMemoryEventBus) -> None:
     received: list[object] = []
-    bus.subscribe("GradeSubmitted", received.append)
+    bus.subscribe("GradeSubmitted", recording(received))
 
-    bus.publish(a_grade())
+    await bus.publish(a_grade())
 
     assert received == [
         {
@@ -59,7 +83,7 @@ def test_a_subscriber_receives_what_is_published(bus: InMemoryEventBus) -> None:
     ]
 
 
-def test_what_a_subscriber_receives_is_plain_data_and_not_a_domain_class(
+async def test_what_a_subscriber_receives_is_plain_data_and_not_a_domain_class(
     bus: InMemoryEventBus,
 ) -> None:
     """``SessionOpened`` carries an ``AcademicYear``, and a consumer holding one would be
@@ -67,67 +91,67 @@ def test_what_a_subscriber_receives_is_plain_data_and_not_a_domain_class(
     is what a real broker would do and what the events module promises.
     """
     received: list[object] = []
-    bus.subscribe("SessionOpened", received.append)
+    bus.subscribe("SessionOpened", recording(received))
 
-    bus.publish(SessionOpened(session_id="sess-2026", academic_year=AcademicYear(2026)))
+    await bus.publish(SessionOpened(session_id="sess-2026", academic_year=AcademicYear(2026)))
 
     (payload,) = received
     assert payload == {"session_id": "sess-2026", "academic_year": {"start_year": 2026}}
     assert not isinstance(payload["academic_year"], AcademicYear)  # type: ignore[index]
 
 
-def test_publishing_with_nobody_listening_is_fine(bus: InMemoryEventBus) -> None:
+async def test_publishing_with_nobody_listening_is_fine(bus: InMemoryEventBus) -> None:
     """The port is 'deliberately ignorant of who listens', including of whether anybody does."""
-    bus.publish(a_grade())
+    await bus.publish(a_grade())
     assert len(bus.published) == 1
 
 
-def test_a_subscriber_hears_only_the_event_it_subscribed_to(bus: InMemoryEventBus) -> None:
+async def test_a_subscriber_hears_only_the_event_it_subscribed_to(bus: InMemoryEventBus) -> None:
     grades: list[object] = []
     sessions: list[object] = []
-    bus.subscribe("GradeSubmitted", grades.append)
-    bus.subscribe("SessionOpened", sessions.append)
+    bus.subscribe("GradeSubmitted", recording(grades))
+    bus.subscribe("SessionOpened", recording(sessions))
 
-    bus.publish(a_grade())
+    await bus.publish(a_grade())
 
     assert len(grades) == 1
     assert sessions == []
 
 
-def test_every_subscriber_to_an_event_hears_it_in_subscription_order(
+async def test_every_subscriber_to_an_event_hears_it_in_subscription_order(
     bus: InMemoryEventBus,
 ) -> None:
     order: list[str] = []
-    bus.subscribe("GradeSubmitted", lambda _: order.append("first"))
-    bus.subscribe("GradeSubmitted", lambda _: order.append("second"))
+    bus.subscribe("GradeSubmitted", noting(order, "first"))
+    bus.subscribe("GradeSubmitted", noting(order, "second"))
 
-    bus.publish(a_grade())
+    await bus.publish(a_grade())
 
     assert order == ["first", "second"]
 
 
-def test_the_bus_remembers_what_it_published(bus: InMemoryEventBus) -> None:
+async def test_the_bus_remembers_what_it_published(bus: InMemoryEventBus) -> None:
     """It is still usable as the spy the remember-only publisher was."""
-    bus.publish(a_grade())
-    bus.publish(a_grade(grade=75))
+    await bus.publish(a_grade())
+    await bus.publish(a_grade(grade=75))
 
     assert [event.grade for event in bus.published] == [68, 75]  # type: ignore[union-attr]
 
 
-def test_what_it_published_comes_back_as_a_tuple(bus: InMemoryEventBus) -> None:
-    bus.publish(a_grade())
+async def test_what_it_published_comes_back_as_a_tuple(bus: InMemoryEventBus) -> None:
+    await bus.publish(a_grade())
     assert isinstance(bus.published, tuple)
 
 
-def test_clearing_forgets_history_but_keeps_the_wiring(bus: InMemoryEventBus) -> None:
+async def test_clearing_forgets_history_but_keeps_the_wiring(bus: InMemoryEventBus) -> None:
     received: list[object] = []
-    bus.subscribe("GradeSubmitted", received.append)
-    bus.publish(a_grade())
+    bus.subscribe("GradeSubmitted", recording(received))
+    await bus.publish(a_grade())
 
     bus.clear()
 
     assert bus.published == ()
-    bus.publish(a_grade())
+    await bus.publish(a_grade())
     assert len(received) == 2
 
 
@@ -140,18 +164,18 @@ def test_subscribers_for_reports_the_wiring_without_exposing_it(
     assert isinstance(bus.subscribers_for("GradeSubmitted"), tuple)
 
 
-def test_a_subscriber_that_raises_takes_the_publish_down_with_it(
+async def test_a_subscriber_that_raises_takes_the_publish_down_with_it(
     bus: InMemoryEventBus,
 ) -> None:
     """Deliberate. Swallowing it would report an event as published that nobody received."""
 
-    def refuse(_: object) -> None:
+    async def refuse(_: Mapping[str, object]) -> None:
         raise RuntimeError("the consumer could not handle it")
 
     bus.subscribe("GradeSubmitted", refuse)
 
     with pytest.raises(RuntimeError, match="could not handle it"):
-        bus.publish(a_grade())
+        await bus.publish(a_grade())
 
 
 def test_an_event_is_immutable_so_the_bus_cannot_alter_it_in_flight(

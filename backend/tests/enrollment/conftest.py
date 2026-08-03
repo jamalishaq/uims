@@ -1,10 +1,10 @@
 """Wiring for the Enrollment tests.
 
-This module is the swap point. Phase 6 replaces the in-memory repositories with Postgres
-ones and Phase 5.2 replaces the clearance stub with the real Billing adapter, and the
-requirement in both cases is that the application test suite runs unchanged — so adapter
-construction happens *only* here, and the repository fixtures are annotated with their port
-types rather than the concrete class.
+This module is the swap point, and Phase 6.1 is the second half of what it was waiting for.
+``enrollments`` and ``offerings`` now come from ``adapters``, which resolves to the in-memory
+classes or the Postgres ones depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``.
+Adapter construction still happens *only* here, and the repository fixtures are still
+annotated with their port types rather than the concrete class.
 
 The three query adapters are annotated concretely, because a test has to tell them what the
 other contexts would answer and ``register``/``deny`` are not on the ports. That is the
@@ -17,11 +17,10 @@ leaked out of the domain layer (CLAUDE.md section 2).
 """
 
 import pytest
+from tests.conftest import Adapters
 
 from enrollment.adapters.outbound import (
     InMemoryCourseInfoAdapter,
-    InMemoryCourseOfferingRepository,
-    InMemoryEnrollmentRepository,
     InMemoryStudentAcademicStandingAdapter,
     StubFinancialClearanceAdapter,
 )
@@ -30,13 +29,13 @@ from enrollment.ports import CourseOfferingRepositoryPort, EnrollmentRepositoryP
 
 
 @pytest.fixture
-def enrollments() -> EnrollmentRepositoryPort:
-    return InMemoryEnrollmentRepository()
+def enrollments(adapters: Adapters) -> EnrollmentRepositoryPort:
+    return adapters.enrollments()
 
 
 @pytest.fixture
-def offerings() -> CourseOfferingRepositoryPort:
-    return InMemoryCourseOfferingRepository()
+def offerings(adapters: Adapters) -> CourseOfferingRepositoryPort:
+    return adapters.offerings()
 
 
 @pytest.fixture

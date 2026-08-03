@@ -65,7 +65,7 @@ class CorrectGrade:
     def __init__(self, records: AcademicRecordRepositoryPort) -> None:
         self._records = records
 
-    def execute(self, command: CorrectGradeCommand) -> GradeCorrected:
+    async def execute(self, command: CorrectGradeCommand) -> GradeCorrected:
         """Apply the correction and store the record.
 
         Raises:
@@ -76,7 +76,7 @@ class CorrectGrade:
                 score is the one already recorded.
             AcademicRecordsError: the score or an identifier is invalid.
         """
-        record = self._records.get(command.student_id)
+        record = await self._records.get(command.student_id)
         if record is None:
             raise AcademicRecordNotFoundError(
                 f"no academic record is stored for student {command.student_id!r}"
@@ -89,7 +89,7 @@ class CorrectGrade:
             reason=command.reason,
             authorized_by=command.authorized_by,
         )
-        self._records.save(record)
+        await self._records.save(record)
 
         return GradeCorrected(
             student_id=record.student_id,

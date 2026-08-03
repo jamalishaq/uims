@@ -15,7 +15,7 @@ class CourseRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, course: Course) -> None:
+    async def add(self, course: Course) -> None:
         """Store a new course.
 
         Raises:
@@ -23,7 +23,7 @@ class CourseRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, course: Course) -> None:
+    async def save(self, course: Course) -> None:
         """Persist changes to a course that is already stored.
 
         Raises:
@@ -31,19 +31,19 @@ class CourseRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, course_id: str) -> Course | None:
+    async def get(self, course_id: str) -> Course | None:
         """Return the course, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_all(self) -> tuple[Course, ...]:
+    async def list_all(self) -> tuple[Course, ...]:
         """Every course in the catalog, in the order it was added."""
 
     @abstractmethod
-    def list_for_department(self, department_id: str) -> tuple[Course, ...]:
+    async def list_for_department(self, department_id: str) -> tuple[Course, ...]:
         """Every course offered by one department, in the order it was added."""
 
     @abstractmethod
-    def find_by_code(self, code: str) -> Course | None:
+    async def find_by_code(self, code: str) -> Course | None:
         """Return the course carrying this code, or ``None``.
 
         Matching is case-insensitive, because storage is: codes are normalised on the

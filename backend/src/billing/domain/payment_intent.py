@@ -220,6 +220,56 @@ class PaymentIntent:
         """
         return cls(reference, party_id, amount, initiated_at, ttl)
 
+    @classmethod
+    def restore(
+        cls,
+        reference: str,
+        party_id: str,
+        amount: Money,
+        initiated_at: datetime,
+        ttl: timedelta,
+        *,
+        status: PaymentIntentStatus,
+        confirmed_amount: Money | None = None,
+        resolved_at: datetime | None = None,
+        failure_reason: str | None = None,
+    ) -> "PaymentIntent":
+        """Rebuild an intent from stored state. A persistence adapter is the only caller.
+
+        Replaying the transitions is not available here and the reason is this aggregate's
+        whole point. ``confirm`` writes a ledger entry's worth of meaning — it is the thing
+        ``ConfirmPayment`` orchestrates around — and ``abandon`` refuses to act without a
+        ``GatewayVerification``, on purpose, so that "ask first" is an invariant rather than a
+        step a caller can skip. Reading a row cannot produce that verification, and it should
+        not have to: the abandonment already happened, and the evidence for it is in the past.
+
+        The combination is checked instead. A confirmed intent with no confirmed amount, or a
+        failed one with no reason, would be a row describing an intent that no transition
+        produces — and either would make ``amount_matched`` or a reconciliation report answer
+        from a ``None`` that should not exist.
+        """
+        if not isinstance(status, PaymentIntentStatus):
+            raise InvalidPaymentIntentError(f"stored status {status!r} is not a status")
+        if status is PaymentIntentStatus.CONFIRMED and confirmed_amount is None:
+            raise InvalidPaymentIntentError(
+                f"intent {reference} is stored as confirmed with no confirmed amount"
+            )
+        if status is PaymentIntentStatus.FAILED and not failure_reason:
+            raise InvalidPaymentIntentError(
+                f"intent {reference} is stored as failed with no reason"
+            )
+        if status is not PaymentIntentStatus.INITIATED and resolved_at is None:
+            raise InvalidPaymentIntentError(
+                f"intent {reference} is stored as {status} but never stopped being open"
+            )
+
+        intent = cls(reference, party_id, amount, initiated_at, ttl)
+        intent._status = status
+        intent._confirmed_amount = confirmed_amount
+        intent._resolved_at = resolved_at
+        intent._failure_reason = failure_reason
+        return intent
+
     @staticmethod
     def _require_ttl(ttl: timedelta | None) -> timedelta:
         if ttl is None:

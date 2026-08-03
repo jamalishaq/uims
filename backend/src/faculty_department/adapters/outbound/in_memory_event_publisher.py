@@ -15,7 +15,7 @@ class InMemoryEventPublisher(EventPublisherPort):
     def __init__(self) -> None:
         self._published: list[DomainEvent] = []
 
-    def publish(self, event: DomainEvent) -> None:
+    async def publish(self, event: DomainEvent) -> None:
         self._published.append(event)
 
     @property

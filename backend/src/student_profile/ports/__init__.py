@@ -14,6 +14,7 @@ from student_profile.ports.department_code import DepartmentCodePort, MatricForm
 from student_profile.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 from student_profile.ports.matric_sequence_repository import MatricSequenceRepositoryPort
@@ -25,6 +26,7 @@ __all__ = [
     "DuplicateAggregateError",
     "MatricFormatInputs",
     "MatricSequenceRepositoryPort",
+    "PersistenceUnavailableError",
     "RepositoryError",
     "StudentRepositoryPort",
 ]

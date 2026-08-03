@@ -102,7 +102,7 @@ class SessionFeeLedger(Protocol):
     handful of lines in a composition root.
     """
 
-    def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
+    async def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
         """The party's position on that session's fee, or ``None`` if there is no such charge.
 
         ``None`` covers three different absences — no ledger, no link to the matric number, no
@@ -160,7 +160,7 @@ class BillingFinancialClearanceAdapter(FinancialClearancePort):
         self._ledger = ledger
         self._thresholds = thresholds
 
-    def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
+    async def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
         """Whether enough of the term's session fee has been paid to register.
 
         ``student_id`` crosses as Billing's party-id without translation: that context keys one
@@ -169,7 +169,7 @@ class BillingFinancialClearanceAdapter(FinancialClearancePort):
         has run. The session is asked for, never the semester — a fee is charged per session
         and the halves differ only in how much of it is demanded.
         """
-        position = self._ledger.session_fee_for(student_id, term.session_id)
+        position = await self._ledger.session_fee_for(student_id, term.session_id)
         if position is None:
             return False
         required = self._thresholds.required_percent(term)

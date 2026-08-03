@@ -68,7 +68,7 @@ class RegisterNewStudent:
         self._departments = departments
         self._issuer = issuer
 
-    def execute(self, command: RegisterNewStudentCommand) -> Student:
+    async def execute(self, command: RegisterNewStudentCommand) -> Student:
         """Store and return the new student.
 
         Raises:
@@ -87,16 +87,18 @@ class RegisterNewStudent:
         )
         entry_level = Level(command.entry_level)
 
-        inputs = self._departments.format_inputs_for(command.program_id, command.entry_session_id)
+        inputs = await self._departments.format_inputs_for(
+            command.program_id, command.entry_session_id
+        )
         if inputs is None:
             raise ProgramPlacementUnknownError(
                 f"no department code or entry year is known for program "
                 f"{command.program_id!r} in session {command.entry_session_id!r}"
             )
 
-        sequence = self._sequences.get_or_start(inputs.department_code, inputs.entry_year)
+        sequence = await self._sequences.get_or_start(inputs.department_code, inputs.entry_year)
         matric_number = self._issuer.issue(sequence)
-        self._sequences.save(sequence)
+        await self._sequences.save(sequence)
 
         student = Student(
             student_id=command.student_id,
@@ -107,5 +109,5 @@ class RegisterNewStudent:
             entry_level=entry_level,
             applicant_id=command.applicant_id,
         )
-        self._students.add(student)
+        await self._students.add(student)
         return student

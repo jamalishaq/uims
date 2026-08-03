@@ -23,132 +23,132 @@ def a_course(
 
 
 class TestStorageContract:
-    def test_an_added_course_comes_back(self) -> None:
+    async def test_an_added_course_comes_back(self) -> None:
         repository = InMemoryCourseRepository()
         course = a_course()
 
-        repository.add(course)
+        await repository.add(course)
 
-        assert repository.get("crs-csc-101") is course
+        assert await repository.get("crs-csc-101") is course
 
-    def test_an_unknown_id_returns_none(self) -> None:
+    async def test_an_unknown_id_returns_none(self) -> None:
         """Absence is an answer, not a failure."""
-        assert InMemoryCourseRepository().get("crs-nobody") is None
+        assert await InMemoryCourseRepository().get("crs-nobody") is None
 
-    def test_adding_a_second_course_under_the_same_id_is_refused(self) -> None:
+    async def test_adding_a_second_course_under_the_same_id_is_refused(self) -> None:
         repository = InMemoryCourseRepository()
         first = a_course()
-        repository.add(first)
+        await repository.add(first)
 
         with pytest.raises(DuplicateAggregateError):
-            repository.add(a_course(code="CSC102"))
+            await repository.add(a_course(code="CSC102"))
 
-        assert repository.get("crs-csc-101") is first
+        assert await repository.get("crs-csc-101") is first
 
-    def test_save_replaces_a_stored_course(self) -> None:
+    async def test_save_replaces_a_stored_course(self) -> None:
         repository = InMemoryCourseRepository()
-        repository.add(a_course())
+        await repository.add(a_course())
         replacement = a_course()
 
-        repository.save(replacement)
+        await repository.save(replacement)
 
-        assert repository.get("crs-csc-101") is replacement
+        assert await repository.get("crs-csc-101") is replacement
 
-    def test_save_on_an_id_that_was_never_added_is_refused(self) -> None:
+    async def test_save_on_an_id_that_was_never_added_is_refused(self) -> None:
         repository = InMemoryCourseRepository()
 
         with pytest.raises(AggregateNotFoundError):
-            repository.save(a_course())
+            await repository.save(a_course())
 
-        assert repository.get("crs-csc-101") is None
+        assert await repository.get("crs-csc-101") is None
 
-    def test_courses_are_kept_apart(self) -> None:
+    async def test_courses_are_kept_apart(self) -> None:
         repository = InMemoryCourseRepository()
         first = a_course("crs-csc-101", code="CSC101")
         second = a_course("crs-csc-201", code="CSC201")
 
-        repository.add(first)
-        repository.add(second)
+        await repository.add(first)
+        await repository.add(second)
 
-        assert repository.get("crs-csc-101") is first
-        assert repository.get("crs-csc-201") is second
+        assert await repository.get("crs-csc-101") is first
+        assert await repository.get("crs-csc-201") is second
 
 
 class TestListAll:
-    def test_courses_are_listed_in_insertion_order(self) -> None:
+    async def test_courses_are_listed_in_insertion_order(self) -> None:
         repository = InMemoryCourseRepository()
         later, earlier = a_course("crs-csc-301", code="CSC301"), a_course("crs-csc-101")
-        repository.add(later)
-        repository.add(earlier)
+        await repository.add(later)
+        await repository.add(earlier)
 
-        assert repository.list_all() == (later, earlier)
+        assert await repository.list_all() == (later, earlier)
 
-    def test_an_empty_repository_lists_nothing(self) -> None:
-        assert InMemoryCourseRepository().list_all() == ()
+    async def test_an_empty_repository_lists_nothing(self) -> None:
+        assert await InMemoryCourseRepository().list_all() == ()
 
 
 class TestListForDepartment:
-    def test_courses_are_filtered_by_department(self) -> None:
+    async def test_courses_are_filtered_by_department(self) -> None:
         repository = InMemoryCourseRepository()
         computing = a_course("crs-csc-101", "dept-csc", "CSC101")
-        repository.add(computing)
-        repository.add(a_course("crs-phy-101", "dept-phy", "PHY101"))
+        await repository.add(computing)
+        await repository.add(a_course("crs-phy-101", "dept-phy", "PHY101"))
 
-        assert repository.list_for_department("dept-csc") == (computing,)
+        assert await repository.list_for_department("dept-csc") == (computing,)
 
-    def test_a_department_offering_nothing_lists_nothing(self) -> None:
+    async def test_a_department_offering_nothing_lists_nothing(self) -> None:
         repository = InMemoryCourseRepository()
-        repository.add(a_course())
+        await repository.add(a_course())
 
-        assert repository.list_for_department("dept-nobody") == ()
+        assert await repository.list_for_department("dept-nobody") == ()
 
-    def test_retired_courses_are_still_listed(self) -> None:
+    async def test_retired_courses_are_still_listed(self) -> None:
         """Filtering by status is the use case's job; the port reports what it holds."""
         repository = InMemoryCourseRepository()
         course = a_course()
         course.retire()
-        repository.add(course)
+        await repository.add(course)
 
-        assert repository.list_for_department(DEPARTMENT_ID) == (course,)
+        assert await repository.list_for_department(DEPARTMENT_ID) == (course,)
 
 
 class TestFindByCode:
-    def test_a_stored_code_is_found(self) -> None:
+    async def test_a_stored_code_is_found(self) -> None:
         repository = InMemoryCourseRepository()
         course = a_course()
-        repository.add(course)
+        await repository.add(course)
 
-        assert repository.find_by_code("CSC101") is course
+        assert await repository.find_by_code("CSC101") is course
 
-    def test_lookup_is_case_insensitive_because_storage_is(self) -> None:
+    async def test_lookup_is_case_insensitive_because_storage_is(self) -> None:
         """Otherwise a taken code would come back free, and the clash check would pass."""
         repository = InMemoryCourseRepository()
         course = a_course()
-        repository.add(course)
+        await repository.add(course)
 
-        assert repository.find_by_code("csc101") is course
-        assert repository.find_by_code("  csc101  ") is course
+        assert await repository.find_by_code("csc101") is course
+        assert await repository.find_by_code("  csc101  ") is course
 
-    def test_an_unused_code_returns_none(self) -> None:
+    async def test_an_unused_code_returns_none(self) -> None:
         repository = InMemoryCourseRepository()
-        repository.add(a_course())
+        await repository.add(a_course())
 
-        assert repository.find_by_code("PHY101") is None
+        assert await repository.find_by_code("PHY101") is None
 
-    def test_a_blank_code_is_refused(self) -> None:
+    async def test_a_blank_code_is_refused(self) -> None:
         with pytest.raises(MissingIdentifierError):
-            InMemoryCourseRepository().find_by_code("   ")
+            await InMemoryCourseRepository().find_by_code("   ")
 
 
 class TestPrerequisitesTravelWithTheCourse:
-    def test_a_stored_course_keeps_the_prerequisites_it_was_given(self) -> None:
+    async def test_a_stored_course_keeps_the_prerequisites_it_was_given(self) -> None:
         """Prerequisites are part of the aggregate, so the repository must carry them."""
         repository = InMemoryCourseRepository()
         course = a_course("crs-csc-201", code="CSC201")
         course.add_prerequisite("crs-csc-101")
-        repository.add(course)
+        await repository.add(course)
 
-        stored = repository.get("crs-csc-201")
+        stored = await repository.get("crs-csc-201")
 
         assert stored is not None
         assert stored.requires("crs-csc-101")

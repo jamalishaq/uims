@@ -87,6 +87,53 @@ class Account:
         """
         return cls(party_id, program_id, level)
 
+    @classmethod
+    def restore(
+        cls,
+        party_id: str,
+        program_id: str,
+        level: Level,
+        *,
+        student_id: str | None = None,
+        charges: Iterable[Charge] = (),
+        payments: Iterable[Payment] = (),
+        credit_balance: Money | None = None,
+    ) -> "Account":
+        """Rebuild a ledger from stored state. A persistence adapter is the only caller.
+
+        **The entries are placed, not replayed.** Re-running ``raise_charge`` and
+        ``apply_payment`` would re-run *allocation*, and allocation is where this aggregate's
+        decisions live: which charge absorbed which payment, and whether that settlement was
+        the one that produced ``AcceptanceFeePaid``. A replay would either publish that fact a
+        second time for money banked last year, or — worse — allocate differently from the way
+        it was allocated originally, because the gating charge is decided by the order the
+        charges were raised in and a replay would be reconstructing that order from the rows it
+        is trying to read. The stored ``allocated`` on each charge *is* the record of what was
+        decided, and it is restored rather than recomputed.
+
+        ``Charge`` and ``Payment`` are frozen and validate themselves, so each entry is still
+        checked. What is not re-checked is the arithmetic between them, and the last argument
+        is why it does not need to be: the credit balance is stored, so the identity that money
+        in equals money allocated plus credit is carried in the row rather than re-derived from
+        it.
+        """
+        account = cls(party_id, program_id, level)
+        if student_id is not None:
+            account._student_id = require_identifier(student_id, "student_id")
+        for charge in charges:
+            if not isinstance(charge, Charge):
+                raise InvalidChargeError("a restored account's charges are Charge values")
+            account._charges.append(charge)
+        for payment in payments:
+            if not isinstance(payment, Payment):
+                raise InvalidChargeError("a restored account's payments are Payment values")
+            account._payments.append(payment)
+        if credit_balance is not None:
+            if not isinstance(credit_balance, Money):
+                raise InvalidChargeError("a restored credit balance must be Money")
+            account._credit_balance = credit_balance
+        return account
+
     # ---- identity ----
 
     @property

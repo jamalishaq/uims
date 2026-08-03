@@ -16,6 +16,8 @@ The three scenarios are the ones the wiring can get wrong: a valid submission mu
 a submission the domain rejected must not, and a redelivery must not arrive twice.
 """
 
+from collections.abc import Mapping
+
 import pytest
 
 from academic_records.adapters.outbound import InMemoryCourseCreditAdapter
@@ -50,7 +52,7 @@ STUDENT_ID = "stu-2026-0001"
 
 
 @pytest.fixture
-def lecturers() -> LecturerRepositoryPort:
+async def lecturers() -> LecturerRepositoryPort:
     """Faculty & Department's own repositories, built here because this test spans two contexts.
 
     The Faculty & Department conftest is not in scope for this package, and importing its
@@ -63,12 +65,12 @@ def lecturers() -> LecturerRepositoryPort:
     lecturer = Lecturer(LECTURER_ID, DEPARTMENT_ID, "Dr Adaeze Okonkwo")
     lecturer.assign_to_course(COURSE_ID, SESSION_ID)
     lecturer.assign_to_course(UNCATALOGUED_COURSE_ID, SESSION_ID)
-    lecturers.add(lecturer)
+    await lecturers.add(lecturer)
     return lecturers
 
 
 @pytest.fixture
-def sessions() -> SessionRepositoryPort:
+async def sessions() -> SessionRepositoryPort:
     sessions = InMemorySessionRepository()
     session = Session.plan(
         SESSION_ID,
@@ -79,7 +81,7 @@ def sessions() -> SessionRepositoryPort:
         ],
     )
     session.open()
-    sessions.add(session)
+    await sessions.add(session)
     return sessions
 
 
@@ -119,38 +121,38 @@ def a_command(**overrides: object) -> SubmitGradeCommand:
 # ---- the path the phase exists to build ----
 
 
-def test_a_submitted_grade_becomes_an_academic_record(
+async def test_a_submitted_grade_becomes_an_academic_record(
     submit_grade: SubmitGrade, records: AcademicRecordRepositoryPort
 ) -> None:
     """The whole phase in one assertion: a lecturer submits, and a record exists."""
-    assert records.get(STUDENT_ID) is None
+    assert await records.get(STUDENT_ID) is None
 
-    submit_grade.execute(a_command())
+    await submit_grade.execute(a_command())
 
-    record = records.get(STUDENT_ID)
+    record = await records.get(STUDENT_ID)
     assert record is not None
     (line,) = record.grades
     assert (line.course_id, line.semester_id, line.score) == (COURSE_ID, FIRST_SEMESTER_ID, 68)
 
 
-def test_the_grade_is_graded_on_academic_records_scale(
+async def test_the_grade_is_graded_on_academic_records_scale(
     submit_grade: SubmitGrade, records: AcademicRecordRepositoryPort
 ) -> None:
     """68 is a B worth 4.0 — a fact Faculty & Department published no opinion about."""
-    submit_grade.execute(a_command())
+    await submit_grade.execute(a_command())
 
-    (line,) = records.get(STUDENT_ID).grades  # type: ignore[union-attr]
+    (line,) = (await records.get(STUDENT_ID)).grades  # type: ignore[union-attr]
     assert (line.letter, str(line.grade_point)) == ("B", "4.0")
     assert line.credit_units == 3
 
 
-def test_grades_across_two_semesters_build_one_record(
+async def test_grades_across_two_semesters_build_one_record(
     submit_grade: SubmitGrade, records: AcademicRecordRepositoryPort
 ) -> None:
-    submit_grade.execute(a_command(score=75))
-    submit_grade.execute(a_command(semester_id=SECOND_SEMESTER_ID, score=55))
+    await submit_grade.execute(a_command(score=75))
+    await submit_grade.execute(a_command(semester_id=SECOND_SEMESTER_ID, score=55))
 
-    record = records.get(STUDENT_ID)
+    record = await records.get(STUDENT_ID)
     assert record is not None
     assert record.transcript().semester_ids == (FIRST_SEMESTER_ID, SECOND_SEMESTER_ID)
     assert str(record.cgpa) == "4.00"  # (15.0 + 9.0) / 6
@@ -159,35 +161,35 @@ def test_grades_across_two_semesters_build_one_record(
 # ---- what must not arrive ----
 
 
-def test_a_submission_the_domain_rejected_reaches_nobody(
+async def test_a_submission_the_domain_rejected_reaches_nobody(
     submit_grade: SubmitGrade,
     records: AcademicRecordRepositoryPort,
     wired_bus: InMemoryEventBus,
 ) -> None:
     """An unassigned lecturer's grade is refused before publication, so no record is created."""
     with pytest.raises(LecturerNotAssignedToCourseError):
-        submit_grade.execute(a_command(course_id=UNTAUGHT_COURSE_ID))
+        await submit_grade.execute(a_command(course_id=UNTAUGHT_COURSE_ID))
 
     assert wired_bus.published == ()
-    assert records.get(STUDENT_ID) is None
+    assert await records.get(STUDENT_ID) is None
 
 
-def test_a_replayed_delivery_leaves_exactly_one_line(
+async def test_a_replayed_delivery_leaves_exactly_one_line(
     submit_grade: SubmitGrade, records: AcademicRecordRepositoryPort, wired_bus: InMemoryEventBus
 ) -> None:
     """At-least-once delivery replayed by hand: the same payload dispatched twice."""
-    submit_grade.execute(a_command())
+    await submit_grade.execute(a_command())
     published = wired_bus.published[0]
     assert isinstance(published, GradeSubmitted)
 
-    wired_bus.publish(published)
+    await wired_bus.publish(published)
 
-    record = records.get(STUDENT_ID)
+    record = await records.get(STUDENT_ID)
     assert record is not None
     assert len(record.grades) == 1
 
 
-def test_a_grade_for_a_course_the_catalog_does_not_know_fails_the_publish(
+async def test_a_grade_for_a_course_the_catalog_does_not_know_fails_the_publish(
     submit_grade: SubmitGrade, records: AcademicRecordRepositoryPort
 ) -> None:
     """Synchronous delivery means a subscriber's refusal surfaces at the publisher.
@@ -201,15 +203,15 @@ def test_a_grade_for_a_course_the_catalog_does_not_know_fails_the_publish(
     Phase 6 buys when this bus is replaced.
     """
     with pytest.raises(CourseCreditsUnavailableError, match=UNCATALOGUED_COURSE_ID):
-        submit_grade.execute(a_command(course_id=UNCATALOGUED_COURSE_ID))
+        await submit_grade.execute(a_command(course_id=UNCATALOGUED_COURSE_ID))
 
-    assert records.get(STUDENT_ID) is None
+    assert await records.get(STUDENT_ID) is None
 
 
 # ---- the boundary the wiring must not cross ----
 
 
-def test_what_crosses_the_bus_is_plain_data(wired_bus: InMemoryEventBus) -> None:
+async def test_what_crosses_the_bus_is_plain_data(wired_bus: InMemoryEventBus) -> None:
     """No class from either context travels: the payload is a mapping of primitives.
 
     This is what ``faculty_department.domain.events`` means by "consumers never import
@@ -217,8 +219,12 @@ def test_what_crosses_the_bus_is_plain_data(wired_bus: InMemoryEventBus) -> None
     consumer's message type can be its own.
     """
     seen: list[object] = []
-    wired_bus.subscribe("GradeSubmitted", seen.append)
-    wired_bus.publish(
+
+    async def watching(payload: Mapping[str, object]) -> None:
+        seen.append(payload)
+
+    wired_bus.subscribe("GradeSubmitted", watching)
+    await wired_bus.publish(
         GradeSubmitted(
             student_id=STUDENT_ID, course_id=COURSE_ID, semester_id=FIRST_SEMESTER_ID, grade=68
         )

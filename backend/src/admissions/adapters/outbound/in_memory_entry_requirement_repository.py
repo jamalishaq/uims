@@ -25,11 +25,11 @@ class InMemoryProgramEntryRequirementRepository(ProgramEntryRequirementRepositor
             lambda requirement: _key(requirement.program_id, requirement.session_id),
         )
 
-    def add(self, requirement: ProgramEntryRequirement) -> None:
+    async def add(self, requirement: ProgramEntryRequirement) -> None:
         self._store.add(requirement)
 
-    def save(self, requirement: ProgramEntryRequirement) -> None:
+    async def save(self, requirement: ProgramEntryRequirement) -> None:
         self._store.save(requirement)
 
-    def get(self, program_id: str, session_id: str) -> ProgramEntryRequirement | None:
+    async def get(self, program_id: str, session_id: str) -> ProgramEntryRequirement | None:
         return self._store.get(_key(program_id, session_id))

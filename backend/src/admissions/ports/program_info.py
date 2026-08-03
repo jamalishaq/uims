@@ -36,7 +36,7 @@ class ProgramInfoPort(ABC):
     """Reads whether a program exists and is admitting for a session."""
 
     @abstractmethod
-    def program_for(self, program_id: str, session_id: str) -> ProgramInfo | None:
+    async def program_for(self, program_id: str, session_id: str) -> ProgramInfo | None:
         """Return what is known about the program, or ``None`` if it is not known there.
 
         ``None`` is an answer, not a failure: asking about a program that does not exist

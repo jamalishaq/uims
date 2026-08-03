@@ -29,7 +29,7 @@ class CourseInfoPort(ABC):
     """Reads what a course requires and what it is worth."""
 
     @abstractmethod
-    def course_for(self, course_id: str) -> CourseFacts | None:
+    async def course_for(self, course_id: str) -> CourseFacts | None:
         """Return what is known about the course, or ``None`` if it is not known there.
 
         ``None`` is an answer, not a failure: asking about a course that does not exist is
