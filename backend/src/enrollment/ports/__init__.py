@@ -27,6 +27,7 @@ from enrollment.ports.enrollment_repository import EnrollmentRepositoryPort
 from enrollment.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 from enrollment.ports.financial_clearance import FinancialClearancePort
@@ -39,6 +40,7 @@ __all__ = [
     "DuplicateAggregateError",
     "EnrollmentRepositoryPort",
     "FinancialClearancePort",
+    "PersistenceUnavailableError",
     "RepositoryError",
     "StudentAcademicStandingPort",
 ]

@@ -22,6 +22,7 @@ from admissions.ports.entry_requirement_repository import ProgramEntryRequiremen
 from admissions.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 from admissions.ports.program_info import ProgramInfo, ProgramInfoPort
@@ -32,6 +33,7 @@ __all__ = [
     "AlternativeProgramPolicyRepositoryPort",
     "ApplicantRepositoryPort",
     "DuplicateAggregateError",
+    "PersistenceUnavailableError",
     "ProgramEntryRequirementRepositoryPort",
     "ProgramInfo",
     "ProgramInfoPort",

@@ -36,9 +36,9 @@ from typing import Any
 from sqlalchemy import Row, Table, and_, delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from faculty_department.adapters.outbound.postgres._errors import translating
-from faculty_department.ports.errors import AggregateNotFoundError
 from persistence import resilient
+from student_profile.adapters.outbound.postgres._errors import translating
+from student_profile.ports.errors import AggregateNotFoundError
 
 type Key = tuple[Any, ...]
 

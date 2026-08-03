@@ -25,6 +25,7 @@ from academic_records.ports.course_credit import CourseCreditPort
 from academic_records.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "AggregateNotFoundError",
     "CourseCreditPort",
     "DuplicateAggregateError",
+    "PersistenceUnavailableError",
     "RepositoryError",
 ]

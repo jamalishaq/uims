@@ -155,7 +155,7 @@ class TestRedelivery:
         await matriculation_handler.handle(a_message())
         await matriculation_handler.handle(a_message())
 
-        assert [sequence.issued for sequence in sequences.all()] == [1]
+        assert [sequence.issued for sequence in await sequences.all()] == [1]
 
     async def test_a_redelivery_does_not_displace_the_next_applicant(
         self, matriculation_handler: StudentMatriculatedHandler
@@ -224,7 +224,7 @@ class TestBothPathsShareOneIssuer:
         await matriculation_handler.handle(a_message())
         await register_new_student.execute(a_manual_command())
 
-        assert {sequence.key: sequence.issued for sequence in sequences.all()} == {
+        assert {sequence.key: sequence.issued for sequence in await sequences.all()} == {
             ("0591", 2026): 2
         }
 

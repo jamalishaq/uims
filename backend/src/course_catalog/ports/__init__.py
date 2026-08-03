@@ -11,6 +11,7 @@ from course_catalog.ports.course_repository import CourseRepositoryPort
 from course_catalog.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 
@@ -18,5 +19,6 @@ __all__ = [
     "AggregateNotFoundError",
     "CourseRepositoryPort",
     "DuplicateAggregateError",
+    "PersistenceUnavailableError",
     "RepositoryError",
 ]

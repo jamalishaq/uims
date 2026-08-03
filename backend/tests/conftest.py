@@ -24,8 +24,10 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from course_catalog.adapters.outbound.postgres import metadata as course_catalog_metadata
 from faculty_department.adapters.outbound.postgres import metadata as faculty_department_metadata
 from persistence import engine_for
+from student_profile.adapters.outbound.postgres import metadata as student_profile_metadata
 
 MEMORY = "memory"
 POSTGRES = "postgres"
@@ -33,7 +35,11 @@ POSTGRES = "postgres"
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/ums"
 """What ``docker compose up -d db`` in ``backend/`` gives you, so the common case needs no env."""
 
-ALL_METADATA = (faculty_department_metadata,)
+ALL_METADATA = (
+    course_catalog_metadata,
+    faculty_department_metadata,
+    student_profile_metadata,
+)
 """One ``MetaData`` per context, each in a Postgres schema of its own name.
 
 Collected here and nowhere in ``src/``: a module that imported all seven would be a module
@@ -179,3 +185,25 @@ class Adapters:
         from faculty_department.adapters.outbound.postgres import PostgresSessionRepository
 
         return self._pick(InMemorySessionRepository, PostgresSessionRepository)
+
+    # ---- course catalog ----
+
+    def courses(self) -> object:
+        from course_catalog.adapters.outbound import InMemoryCourseRepository
+        from course_catalog.adapters.outbound.postgres import PostgresCourseRepository
+
+        return self._pick(InMemoryCourseRepository, PostgresCourseRepository)
+
+    # ---- student profile ----
+
+    def students(self) -> object:
+        from student_profile.adapters.outbound import InMemoryStudentRepository
+        from student_profile.adapters.outbound.postgres import PostgresStudentRepository
+
+        return self._pick(InMemoryStudentRepository, PostgresStudentRepository)
+
+    def sequences(self) -> object:
+        from student_profile.adapters.outbound import InMemoryMatricSequenceRepository
+        from student_profile.adapters.outbound.postgres import PostgresMatricSequenceRepository
+
+        return self._pick(InMemoryMatricSequenceRepository, PostgresMatricSequenceRepository)

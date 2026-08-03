@@ -154,7 +154,7 @@ class TestSequentialNumbers:
                 a_command(student_id=f"stu-{index}", program_id=program_id)
             )
 
-        assert {sequence.key: sequence.issued for sequence in sequences.all()} == {
+        assert {sequence.key: sequence.issued for sequence in await sequences.all()} == {
             ("0591", 2026): 2,
             ("0672", 2026): 1,
         }
@@ -187,7 +187,7 @@ class TestFactsItRefusesToInvent:
             await register_new_student.execute(a_command(program_id="prog-nobody"))
 
         assert await students.get("stu-0001") is None
-        assert sequences.all() == ()
+        assert await sequences.all() == ()
 
 
 class TestRejectedCommands:
@@ -201,7 +201,7 @@ class TestRejectedCommands:
         with pytest.raises(MissingIdentifierError):
             await register_new_student.execute(a_command(full_name="   "))
 
-        assert sequences.all() == ()
+        assert await sequences.all() == ()
 
     async def test_an_impossible_level_is_rejected_before_anything_is_claimed(
         self,
@@ -211,7 +211,7 @@ class TestRejectedCommands:
         with pytest.raises(InvalidLevelError):
             await register_new_student.execute(a_command(entry_level=150))
 
-        assert sequences.all() == ()
+        assert await sequences.all() == ()
 
     async def test_a_reused_student_id_is_a_repository_failure(
         self, register_new_student: RegisterNewStudent

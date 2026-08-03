@@ -35,10 +35,10 @@ class PostgresFacultyRepository(PostgresRepository[Faculty], FacultyRepositoryPo
     """Holds faculties in Postgres."""
 
     def __init__(self, engine: AsyncEngine) -> None:
-        super().__init__(engine, label="faculty", table=t.faculties, key="faculty_id")
+        super().__init__(engine, label="faculty", table=t.faculties, key=("faculty_id",))
 
-    def identity_of(self, aggregate: Faculty) -> str:
-        return aggregate.faculty_id
+    def identity_of(self, aggregate: Faculty) -> tuple[str]:
+        return (aggregate.faculty_id,)
 
     def row_of(self, aggregate: Faculty) -> dict[str, Any]:
         return m.faculty_row(aggregate)
@@ -63,10 +63,10 @@ class PostgresDepartmentRepository(PostgresRepository[Department], DepartmentRep
     """Holds departments in Postgres."""
 
     def __init__(self, engine: AsyncEngine) -> None:
-        super().__init__(engine, label="department", table=t.departments, key="department_id")
+        super().__init__(engine, label="department", table=t.departments, key=("department_id",))
 
-    def identity_of(self, aggregate: Department) -> str:
-        return aggregate.department_id
+    def identity_of(self, aggregate: Department) -> tuple[str]:
+        return (aggregate.department_id,)
 
     def row_of(self, aggregate: Department) -> dict[str, Any]:
         return m.department_row(aggregate)
@@ -91,10 +91,10 @@ class PostgresProgramRepository(PostgresRepository[Program], ProgramRepositoryPo
     """Holds programs in Postgres."""
 
     def __init__(self, engine: AsyncEngine) -> None:
-        super().__init__(engine, label="program", table=t.programs, key="program_id")
+        super().__init__(engine, label="program", table=t.programs, key=("program_id",))
 
-    def identity_of(self, aggregate: Program) -> str:
-        return aggregate.program_id
+    def identity_of(self, aggregate: Program) -> tuple[str]:
+        return (aggregate.program_id,)
 
     def row_of(self, aggregate: Program) -> dict[str, Any]:
         return m.program_row(aggregate)
@@ -123,14 +123,14 @@ class PostgresLecturerRepository(PostgresRepository[Lecturer], LecturerRepositor
     """
 
     def __init__(self, engine: AsyncEngine) -> None:
-        super().__init__(engine, label="lecturer", table=t.lecturers, key="lecturer_id")
+        super().__init__(engine, label="lecturer", table=t.lecturers, key=("lecturer_id",))
 
     @property
-    def child_tables(self) -> Sequence[tuple[Table, str]]:
-        return ((t.lecturer_assignments, "lecturer_id"),)
+    def child_tables(self) -> Sequence[tuple[Table, Sequence[str]]]:
+        return ((t.lecturer_assignments, ("lecturer_id",)),)
 
-    def identity_of(self, aggregate: Lecturer) -> str:
-        return aggregate.lecturer_id
+    def identity_of(self, aggregate: Lecturer) -> tuple[str]:
+        return (aggregate.lecturer_id,)
 
     def row_of(self, aggregate: Lecturer) -> dict[str, Any]:
         return m.lecturer_row(aggregate)
@@ -162,14 +162,14 @@ class PostgresSessionRepository(PostgresRepository[Session], SessionRepositoryPo
     """
 
     def __init__(self, engine: AsyncEngine) -> None:
-        super().__init__(engine, label="session", table=t.sessions, key="session_id")
+        super().__init__(engine, label="session", table=t.sessions, key=("session_id",))
 
     @property
-    def child_tables(self) -> Sequence[tuple[Table, str]]:
-        return ((t.semesters, "session_id"),)
+    def child_tables(self) -> Sequence[tuple[Table, Sequence[str]]]:
+        return ((t.semesters, ("session_id",)),)
 
-    def identity_of(self, aggregate: Session) -> str:
-        return aggregate.session_id
+    def identity_of(self, aggregate: Session) -> tuple[str]:
+        return (aggregate.session_id,)
 
     def row_of(self, aggregate: Session) -> dict[str, Any]:
         return m.session_row(aggregate)

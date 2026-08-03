@@ -50,7 +50,11 @@ class InMemoryMatricSequenceRepository(MatricSequenceRepositoryPort):
         with self._lock:
             return self._sequences.get((department_code.value, entry_year.value))
 
-    def all(self) -> tuple[MatricSequence, ...]:
-        """Every sequence started so far. Not on the port: for tests and reporting."""
+    async def all(self) -> tuple[MatricSequence, ...]:
+        """Every sequence started so far. Not on the port: for tests and reporting.
+
+        Asynchronous like every other read here, though a dict needs no await: the Postgres
+        adapter behind the same fixture cannot answer without one, and a method that changed
+        shape with the backend would defeat the swap."""
         with self._lock:
             return tuple(self._sequences.values())

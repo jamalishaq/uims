@@ -179,5 +179,5 @@ class TestMatricSequenceRepository:
 
         claimed = await asyncio.gather(*(claim() for _ in range(200)))
 
-        assert len(sequences.all()) == 1
+        assert len(await sequences.all()) == 1
         assert sorted(claimed) == list(range(1, 201))

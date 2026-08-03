@@ -30,6 +30,7 @@ from billing.ports.account_repository import AccountRepositoryPort
 from billing.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 from billing.ports.event_publisher import EventPublisherPort
@@ -51,5 +52,6 @@ __all__ = [
     "PaymentGatewayPort",
     "PaymentGatewayUnavailableError",
     "PaymentIntentRepositoryPort",
+    "PersistenceUnavailableError",
     "RepositoryError",
 ]
