@@ -9,6 +9,7 @@ from faculty_department.ports.department_repository import DepartmentRepositoryP
 from faculty_department.ports.errors import (
     AggregateNotFoundError,
     DuplicateAggregateError,
+    PersistenceUnavailableError,
     RepositoryError,
 )
 from faculty_department.ports.event_publisher import EventPublisherPort
@@ -24,6 +25,7 @@ __all__ = [
     "EventPublisherPort",
     "FacultyRepositoryPort",
     "LecturerRepositoryPort",
+    "PersistenceUnavailableError",
     "ProgramRepositoryPort",
     "RepositoryError",
     "SessionRepositoryPort",

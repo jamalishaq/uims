@@ -37,7 +37,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+# One event loop for the whole run. The Postgres engine and its connection pool are
+# session-scoped, and a pooled connection opened on one loop cannot be handed to another.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff]
 line-length = 100

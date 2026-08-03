@@ -1,22 +1,21 @@
 """Wiring for the Faculty & Department tests.
 
-This module is the swap point. Phase 6 replaces the in-memory adapters with Postgres
-ones, and the requirement is that the application test suite runs unchanged against
-both — so adapter construction happens *only* here, and every fixture is annotated with
-its port type rather than the concrete class. A test that names an adapter directly is a
-test that would have to be rewritten later.
+This module is the swap point, and Phase 6.1 is what it was waiting for. The repositories
+now come from ``adapters``, which resolves to the in-memory classes or the Postgres ones
+depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. Nothing else moved: the
+fixture names, the port annotations and the tests that drive them are what they were, which
+is the whole claim this phase makes.
+
+Adapter construction still happens *only* here, and every fixture is still annotated with its
+port type rather than the concrete class. A test that names an adapter directly is a test
+that would have to be rewritten later — and now that "later" has arrived, the ones that did
+not are the evidence.
 """
 
 import pytest
+from tests.conftest import Adapters
 
-from faculty_department.adapters.outbound import (
-    InMemoryDepartmentRepository,
-    InMemoryEventPublisher,
-    InMemoryFacultyRepository,
-    InMemoryLecturerRepository,
-    InMemoryProgramRepository,
-    InMemorySessionRepository,
-)
+from faculty_department.adapters.outbound import InMemoryEventPublisher
 from faculty_department.application import SubmitGrade
 from faculty_department.ports import (
     DepartmentRepositoryPort,
@@ -29,28 +28,28 @@ from faculty_department.ports import (
 
 
 @pytest.fixture
-def faculties() -> FacultyRepositoryPort:
-    return InMemoryFacultyRepository()
+def faculties(adapters: Adapters) -> FacultyRepositoryPort:
+    return adapters.faculties()
 
 
 @pytest.fixture
-def departments() -> DepartmentRepositoryPort:
-    return InMemoryDepartmentRepository()
+def departments(adapters: Adapters) -> DepartmentRepositoryPort:
+    return adapters.departments()
 
 
 @pytest.fixture
-def programs() -> ProgramRepositoryPort:
-    return InMemoryProgramRepository()
+def programs(adapters: Adapters) -> ProgramRepositoryPort:
+    return adapters.programs()
 
 
 @pytest.fixture
-def lecturers() -> LecturerRepositoryPort:
-    return InMemoryLecturerRepository()
+def lecturers(adapters: Adapters) -> LecturerRepositoryPort:
+    return adapters.lecturers()
 
 
 @pytest.fixture
-def sessions() -> SessionRepositoryPort:
-    return InMemorySessionRepository()
+def sessions(adapters: Adapters) -> SessionRepositoryPort:
+    return adapters.sessions()
 
 
 @pytest.fixture
