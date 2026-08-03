@@ -30,6 +30,7 @@ once:
    ``grades`` property that returns anything a caller can write into.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -108,6 +109,45 @@ class AcademicRecord:
         the same breath, so a stored record always has at least one line in it.
         """
         return cls(student_id, scale=scale, probation=probation)
+
+    @classmethod
+    def restore(
+        cls,
+        student_id: str,
+        grades: Iterable[CourseGrade],
+        corrections: Iterable[GradeCorrection] = (),
+        *,
+        scale: GradingScale = LASU_GRADING_SCALE,
+        probation: ProbationPolicy | None = None,
+    ) -> "AcademicRecord":
+        """Rebuild a record from stored state. A persistence adapter is the only caller.
+
+        **The lines are placed, not re-awarded.** Going back through :meth:`record_grade`
+        would re-derive every letter and grade point from this record's *current* scale, and
+        the whole reason ``grading_scale`` is held on the record is that "a student graded
+        under one scale keeps the letters they were given if the university adopts another".
+        A reconstitution that quietly re-graded a 2019 transcript under a 2027 scale would
+        defeat the field it was reading. So the stored :class:`CourseGrade` values go in as
+        they are — they are frozen, and they were validated when they were awarded.
+
+        Replaying would also be wrong for a plainer reason: :meth:`record_grade` refuses a
+        second score for a ``(course, semester)`` already held, so a record whose grade was
+        later corrected could not be replayed at all. Its correction would raise.
+
+        The corrections are the audit trail, and they are restored beside the lines rather
+        than reapplied to them. Applying them would move each line to the end of the
+        transcript, and "a correction fixes a mark rather than re-sitting a course".
+        """
+        record = cls(student_id, scale=scale, probation=probation)
+        for grade in grades:
+            if not isinstance(grade, CourseGrade):
+                raise TypeError("a restored record is made of CourseGrade lines")
+            record._grades.append(grade)
+        for correction in corrections:
+            if not isinstance(correction, GradeCorrection):
+                raise TypeError("a restored record's corrections are GradeCorrection entries")
+            record._corrections.append(correction)
+        return record
 
     # ---- identity and configuration ----
 

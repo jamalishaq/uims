@@ -97,10 +97,26 @@ class PostgresRepository[T](ABC):
             if column not in self._key_columns
         }
         async with translating(self._describe(key)), self._engine.begin() as conn:
-            result = await conn.execute(
-                update(self._table).where(self._key_match(key)).values(**row)
-            )
-            if result.rowcount == 0:
+            if row:
+                found = (
+                    await conn.execute(
+                        update(self._table).where(self._key_match(key)).values(**row)
+                    )
+                ).rowcount
+            else:
+                # An aggregate whose parent row is nothing but its key — Admissions' entry
+                # requirements and alternative-program policies, which are a key and a set of
+                # children. There is nothing to SET, and `UPDATE ... WHERE` with no SET is a
+                # syntax error, so existence is established by locking the row instead. The
+                # lock is not incidental: the children are about to be deleted and rewritten.
+                found = len(
+                    (
+                        await conn.execute(
+                            select(self._table).where(self._key_match(key)).with_for_update()
+                        )
+                    ).all()
+                )
+            if found == 0:
                 raise AggregateNotFoundError(f"{self._describe(key)} was never added")
             await self._replace_children(conn, aggregate, key)
         self._identities[key] = aggregate
@@ -155,9 +171,7 @@ class PostgresRepository[T](ABC):
     @staticmethod
     def _match(table: Table, columns: Sequence[str], key: Key) -> Any:
         """``column = value`` for every part of the key, joined with AND."""
-        return and_(
-            *(table.c[column] == value for column, value in zip(columns, key, strict=True))
-        )
+        return and_(*(table.c[column] == value for column, value in zip(columns, key, strict=True)))
 
     def _describe(self, key: Key) -> str:
         return f"{self._label} {'/'.join(str(part) for part in key)}"

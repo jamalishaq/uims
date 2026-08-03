@@ -93,6 +93,45 @@ class Enrollment:
             is_carry_over=is_carry_over,
         )
 
+    @classmethod
+    def restore(
+        cls,
+        enrollment_id: str,
+        student_id: str,
+        course_id: str,
+        term: Term,
+        credit_units: int,
+        *,
+        is_carry_over: bool,
+        status: EnrollmentStatus,
+    ) -> "Enrollment":
+        """Rebuild a registration from stored state. A persistence adapter is the only caller.
+
+        Only ``status`` is unreachable otherwise, and it is unreachable for the reason the
+        three states exist: ``await_grade`` refuses a registration already waiting on a mark
+        and ``finalize`` refuses one already finalised, so replaying the machine on load would
+        raise on any registration read twice. Everything else here is an ordinary constructor
+        argument, which is why this takes a status and nothing else that ``__init__`` does not.
+
+        Takes ``course_id`` and ``credit_units`` separately rather than the ``CourseFacts``
+        :meth:`register` insists on. That insistence exists so a caller cannot pass units and
+        a course that disagree; here they came off one row, written together, and asking a
+        persistence adapter to rebuild a facts object it would immediately take apart would be
+        ceremony rather than safety.
+        """
+        if not isinstance(status, EnrollmentStatus):
+            raise InvalidTermError(f"stored status {status!r} is not an EnrollmentStatus")
+        enrollment = cls(
+            enrollment_id=enrollment_id,
+            student_id=student_id,
+            course_id=course_id,
+            term=term,
+            credit_units=credit_units,
+            is_carry_over=is_carry_over,
+        )
+        enrollment._status = status
+        return enrollment
+
     @property
     def enrollment_id(self) -> str:
         return self._enrollment_id

@@ -67,6 +67,27 @@ _FINAL_STATUSES = frozenset(
     }
 )
 
+_OFFER_HELD_STATUSES = frozenset(
+    {
+        ApplicationStatus.OFFERED,
+        ApplicationStatus.ACCEPTED,
+        ApplicationStatus.DECLINED,
+        ApplicationStatus.MATRICULATED,
+    }
+)
+"""Every status an application can only be in because an offer was made to it.
+
+Read by :meth:`Applicant.restore` alone. A row in one of these carrying no offered program is
+a row describing an application that no sequence of transitions could have produced.
+"""
+
+_FEE_CLEARABLE_STATUSES = frozenset({ApplicationStatus.ACCEPTED, ApplicationStatus.MATRICULATED})
+"""Where the fee-cleared flag can legitimately be set.
+
+``record_acceptance_fee_paid`` demands ``ACCEPTED``, and matriculation is the only thing that
+moves an applicant on from there — so a flag set anywhere else did not come from this class.
+"""
+
 
 class Applicant:
     """Someone who applied to the university for a given session."""
@@ -103,6 +124,54 @@ class Applicant:
     ) -> "Applicant":
         """Submit an application. Nothing has been decided yet: no offer, no fee, no place."""
         return cls(applicant_id, applied_program_id, session_id, bio_data, utme_result)
+
+    @classmethod
+    def restore(
+        cls,
+        applicant_id: str,
+        applied_program_id: str,
+        session_id: str,
+        bio_data: BioData,
+        utme_result: UtmeResult,
+        *,
+        status: ApplicationStatus,
+        offered_program_id: str | None,
+        fee_cleared: bool,
+    ) -> "Applicant":
+        """Rebuild an application from stored state. A persistence adapter is the only caller.
+
+        The three fields below the line are the lifecycle, and every one of them is reachable
+        only through a transition that refuses to be re-run: :meth:`screen` raises on an
+        applicant already screened, :meth:`offer` on one already decided, :meth:`matriculate`
+        on a terminal outcome. Replaying the machine on load would therefore be replaying it
+        *against itself*, and would mean the act of reading a row could raise
+        ``ApplicationOutcomeFinalError``.
+
+        So the state is set, and the combination is checked instead — which is the same
+        bargain ``Session.restore`` and ``MatricSequence.restore`` strike. The two checks are
+        the two ways a row could describe an application no transition could have produced:
+        holding an offer without a program to hold it on, and being fee-cleared without having
+        accepted anything. Both would otherwise become an ``Applicant`` that this class's own
+        invariants say cannot exist.
+        """
+        if not isinstance(status, ApplicationStatus):
+            raise ApplicationOutcomeFinalError(f"stored status {status!r} is not a status")
+
+        applicant = cls(applicant_id, applied_program_id, session_id, bio_data, utme_result)
+        if offered_program_id is not None:
+            applicant._offered_program_id = require_identifier(offered_program_id, "program_id")
+        if status in _OFFER_HELD_STATUSES and applicant._offered_program_id is None:
+            raise NoOfferToRespondToError(
+                f"applicant {applicant_id} is stored as {status.value} with no offered program"
+            )
+        if fee_cleared and status not in _FEE_CLEARABLE_STATUSES:
+            raise OfferNotAcceptedError(
+                f"applicant {applicant_id} is stored as {status.value} and fee-cleared, "
+                "which no sequence of transitions produces"
+            )
+        applicant._status = status
+        applicant._fee_cleared = bool(fee_cleared)
+        return applicant
 
     @property
     def applicant_id(self) -> str:

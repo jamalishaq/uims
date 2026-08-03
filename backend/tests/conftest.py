@@ -24,7 +24,11 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from academic_records.adapters.outbound.postgres import metadata as academic_records_metadata
+from admissions.adapters.outbound.postgres import metadata as admissions_metadata
+from billing.adapters.outbound.postgres import metadata as billing_metadata
 from course_catalog.adapters.outbound.postgres import metadata as course_catalog_metadata
+from enrollment.adapters.outbound.postgres import metadata as enrollment_metadata
 from faculty_department.adapters.outbound.postgres import metadata as faculty_department_metadata
 from persistence import engine_for
 from student_profile.adapters.outbound.postgres import metadata as student_profile_metadata
@@ -36,7 +40,11 @@ DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/u
 """What ``docker compose up -d db`` in ``backend/`` gives you, so the common case needs no env."""
 
 ALL_METADATA = (
+    academic_records_metadata,
+    admissions_metadata,
+    billing_metadata,
     course_catalog_metadata,
+    enrollment_metadata,
     faculty_department_metadata,
     student_profile_metadata,
 )
@@ -207,3 +215,83 @@ class Adapters:
         from student_profile.adapters.outbound.postgres import PostgresMatricSequenceRepository
 
         return self._pick(InMemoryMatricSequenceRepository, PostgresMatricSequenceRepository)
+
+    # ---- admissions ----
+
+    def applicants(self) -> object:
+        from admissions.adapters.outbound import InMemoryApplicantRepository
+        from admissions.adapters.outbound.postgres import PostgresApplicantRepository
+
+        return self._pick(InMemoryApplicantRepository, PostgresApplicantRepository)
+
+    def cycles(self) -> object:
+        from admissions.adapters.outbound import InMemoryAdmissionCycleRepository
+        from admissions.adapters.outbound.postgres import PostgresAdmissionCycleRepository
+
+        return self._pick(InMemoryAdmissionCycleRepository, PostgresAdmissionCycleRepository)
+
+    def requirements(self) -> object:
+        from admissions.adapters.outbound import InMemoryProgramEntryRequirementRepository
+        from admissions.adapters.outbound.postgres import (
+            PostgresProgramEntryRequirementRepository,
+        )
+
+        return self._pick(
+            InMemoryProgramEntryRequirementRepository,
+            PostgresProgramEntryRequirementRepository,
+        )
+
+    def policies(self) -> object:
+        from admissions.adapters.outbound import InMemoryAlternativeProgramPolicyRepository
+        from admissions.adapters.outbound.postgres import (
+            PostgresAlternativeProgramPolicyRepository,
+        )
+
+        return self._pick(
+            InMemoryAlternativeProgramPolicyRepository,
+            PostgresAlternativeProgramPolicyRepository,
+        )
+
+    # ---- enrollment ----
+
+    def enrollments(self) -> object:
+        from enrollment.adapters.outbound import InMemoryEnrollmentRepository
+        from enrollment.adapters.outbound.postgres import PostgresEnrollmentRepository
+
+        return self._pick(InMemoryEnrollmentRepository, PostgresEnrollmentRepository)
+
+    def offerings(self) -> object:
+        from enrollment.adapters.outbound import InMemoryCourseOfferingRepository
+        from enrollment.adapters.outbound.postgres import PostgresCourseOfferingRepository
+
+        return self._pick(InMemoryCourseOfferingRepository, PostgresCourseOfferingRepository)
+
+    # ---- academic records ----
+
+    def records(self) -> object:
+        from academic_records.adapters.outbound import InMemoryAcademicRecordRepository
+        from academic_records.adapters.outbound.postgres import (
+            PostgresAcademicRecordRepository,
+        )
+
+        return self._pick(InMemoryAcademicRecordRepository, PostgresAcademicRecordRepository)
+
+    # ---- billing ----
+
+    def accounts(self) -> object:
+        from billing.adapters.outbound import InMemoryAccountRepository
+        from billing.adapters.outbound.postgres import PostgresAccountRepository
+
+        return self._pick(InMemoryAccountRepository, PostgresAccountRepository)
+
+    def schedules(self) -> object:
+        from billing.adapters.outbound import InMemoryFeeScheduleRepository
+        from billing.adapters.outbound.postgres import PostgresFeeScheduleRepository
+
+        return self._pick(InMemoryFeeScheduleRepository, PostgresFeeScheduleRepository)
+
+    def intents(self) -> object:
+        from billing.adapters.outbound import InMemoryPaymentIntentRepository
+        from billing.adapters.outbound.postgres import PostgresPaymentIntentRepository
+
+        return self._pick(InMemoryPaymentIntentRepository, PostgresPaymentIntentRepository)

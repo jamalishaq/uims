@@ -8,7 +8,6 @@ client behind the credit adapter.
 import pytest
 
 from academic_records.adapters.outbound import (
-    InMemoryAcademicRecordRepository,
     InMemoryCourseCreditAdapter,
 )
 from academic_records.domain import (
@@ -147,5 +146,12 @@ def test_the_adapter_is_a_course_credit_port(courses: InMemoryCourseCreditAdapte
 def test_the_repository_is_an_academic_record_repository_port(
     records: AcademicRecordRepositoryPort,
 ) -> None:
-    assert isinstance(records, InMemoryAcademicRecordRepository)
+    """What the name says, and now only that.
+
+    This asserted ``isinstance(records, InMemoryAcademicRecordRepository)`` as well, which was
+    the one place in the whole suite where a swappable fixture was pinned to a storage. Phase
+    6.1 is the swap those fixtures were annotated for, and the concrete assertion is exactly
+    the coupling every conftest in this tree warns against — "a test that names an adapter
+    directly is a test that would have to be rewritten later". This is later.
+    """
     assert isinstance(records, AcademicRecordRepositoryPort)

@@ -1,9 +1,10 @@
 """Wiring for the Admissions tests.
 
-This module is the swap point. Phase 6 replaces the in-memory adapters with Postgres ones,
-and the requirement is that the application test suite runs unchanged against both — so
-adapter construction happens *only* here, and every fixture is annotated with its port type
-rather than the concrete class. A test that named ``InMemoryApplicantRepository`` in its
+This module is the swap point, and Phase 6.1 is what it was waiting for. The four repositories
+now come from ``adapters``, which resolves to the in-memory classes or the Postgres ones
+depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. Adapter construction still
+happens *only* here, and every fixture is still annotated with its port type rather than the
+concrete class. A test that named ``InMemoryApplicantRepository`` in its
 own body would be a test that had to be edited when the storage changed, which is exactly
 the coupling the ports exist to prevent.
 
@@ -18,14 +19,9 @@ leaked out of the domain layer (CLAUDE.md section 2).
 """
 
 import pytest
+from tests.conftest import Adapters
 
-from admissions.adapters.outbound import (
-    InMemoryAdmissionCycleRepository,
-    InMemoryAlternativeProgramPolicyRepository,
-    InMemoryApplicantRepository,
-    InMemoryProgramEntryRequirementRepository,
-    InMemoryProgramInfoAdapter,
-)
+from admissions.adapters.outbound import InMemoryProgramInfoAdapter
 from admissions.application import MakeOfferToApplicant, ScreenApplicant, SubmitApplication
 from admissions.ports import (
     AdmissionCycleRepositoryPort,
@@ -36,23 +32,23 @@ from admissions.ports import (
 
 
 @pytest.fixture
-def applicants() -> ApplicantRepositoryPort:
-    return InMemoryApplicantRepository()
+def applicants(adapters: Adapters) -> ApplicantRepositoryPort:
+    return adapters.applicants()
 
 
 @pytest.fixture
-def requirements() -> ProgramEntryRequirementRepositoryPort:
-    return InMemoryProgramEntryRequirementRepository()
+def requirements(adapters: Adapters) -> ProgramEntryRequirementRepositoryPort:
+    return adapters.requirements()
 
 
 @pytest.fixture
-def cycles() -> AdmissionCycleRepositoryPort:
-    return InMemoryAdmissionCycleRepository()
+def cycles(adapters: Adapters) -> AdmissionCycleRepositoryPort:
+    return adapters.cycles()
 
 
 @pytest.fixture
-def policies() -> AlternativeProgramPolicyRepositoryPort:
-    return InMemoryAlternativeProgramPolicyRepository()
+def policies(adapters: Adapters) -> AlternativeProgramPolicyRepositoryPort:
+    return adapters.policies()
 
 
 @pytest.fixture

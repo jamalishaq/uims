@@ -1,11 +1,15 @@
 """Wiring for the Billing tests.
 
-This module is the swap point. Phase 6 replaces the in-memory repositories with Postgres ones
-and the publisher with something that reaches a broker, and the requirement in every case is
-that the application test suite runs unchanged — so adapter construction happens *only* here,
-and the repository fixture is annotated with its port type rather than the concrete class. The
-schedule repository and the publisher are annotated concretely on purpose: tests publish
-schedules through the first and read ``published`` off the second, and neither is on a port.
+This module is the swap point, and Phase 6.1 is what it was waiting for. The three
+repositories now come from ``adapters``, which resolves to the in-memory classes or the
+Postgres ones depending on ``UMS_TEST_BACKEND`` — see ``tests/conftest.py``. The publisher
+still remembers rather than reaching a broker; that is a later swap and a different port.
+
+Adapter construction still happens *only* here, and the repository fixtures are still
+annotated with their port types rather than the concrete class. The schedule repository and
+the publisher keep concrete annotations for the reason they always had — tests publish
+schedules through the first and read ``published`` off the second — though only the publisher
+is genuinely unswappable, since ``add`` is on the schedule port.
 
 It is also this context's **composition root**. The ``wired_bus`` fixture is the one place
 where Faculty & Department's publisher and Billing's handler are introduced to each other, and
@@ -27,6 +31,7 @@ the domain layer (CLAUDE.md section 2).
 from decimal import Decimal
 
 import pytest
+from tests.conftest import Adapters
 
 from billing.adapters.inbound import (
     SESSION_OPENED,
@@ -36,10 +41,8 @@ from billing.adapters.inbound import (
     WebhookSignatureVerifier,
 )
 from billing.adapters.outbound import (
-    InMemoryAccountRepository,
     InMemoryEventPublisher,
     InMemoryFeeScheduleRepository,
-    InMemoryPaymentIntentRepository,
     StubPaymentGateway,
 )
 from billing.application import (
@@ -90,14 +93,19 @@ def a_schedule(session_id: str = SESSION_2026, **overrides: object) -> FeeSchedu
 
 
 @pytest.fixture
-def accounts() -> AccountRepositoryPort:
-    return InMemoryAccountRepository()
+def accounts(adapters: Adapters) -> AccountRepositoryPort:
+    return adapters.accounts()
 
 
 @pytest.fixture
-def schedules() -> InMemoryFeeScheduleRepository:
-    """Concrete on purpose: tests publish schedules through it."""
-    return InMemoryFeeScheduleRepository()
+def schedules(adapters: Adapters) -> InMemoryFeeScheduleRepository:
+    """Concrete on purpose: tests publish schedules through it.
+
+    ``add`` *is* on the port, so this swaps with the backend like any other repository. The
+    annotation names the in-memory class because that is what a reader looking for the
+    publishing helper needs.
+    """
+    return adapters.schedules()
 
 
 @pytest.fixture
@@ -140,8 +148,8 @@ def record_payment(
 
 
 @pytest.fixture
-def intents() -> PaymentIntentRepositoryPort:
-    return InMemoryPaymentIntentRepository()
+def intents(adapters: Adapters) -> PaymentIntentRepositoryPort:
+    return adapters.intents()
 
 
 @pytest.fixture
