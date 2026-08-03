@@ -23,52 +23,54 @@ def repository() -> InMemoryPaymentIntentRepository:
     return InMemoryPaymentIntentRepository()
 
 
-def test_an_added_intent_can_be_read_back(repository: InMemoryPaymentIntentRepository) -> None:
+async def test_an_added_intent_can_be_read_back(
+    repository: InMemoryPaymentIntentRepository,
+) -> None:
     intent = an_intent()
-    repository.add(intent)
+    await repository.add(intent)
 
-    assert repository.get("psk-ref-0001") is intent
+    assert await repository.get("psk-ref-0001") is intent
 
 
-def test_a_reference_nobody_opened_is_none_rather_than_a_failure(
+async def test_a_reference_nobody_opened_is_none_rather_than_a_failure(
     repository: InMemoryPaymentIntentRepository,
 ) -> None:
-    assert repository.get("psk-ref-nobody") is None
+    assert await repository.get("psk-ref-nobody") is None
 
 
-def test_a_reference_cannot_be_claimed_twice(
+async def test_a_reference_cannot_be_claimed_twice(
     repository: InMemoryPaymentIntentRepository,
 ) -> None:
-    repository.add(an_intent())
+    await repository.add(an_intent())
 
     with pytest.raises(DuplicateAggregateError):
-        repository.add(an_intent())
+        await repository.add(an_intent())
 
 
-def test_saving_an_intent_that_was_never_added_is_refused(
+async def test_saving_an_intent_that_was_never_added_is_refused(
     repository: InMemoryPaymentIntentRepository,
 ) -> None:
     with pytest.raises(AggregateNotFoundError):
-        repository.save(an_intent())
+        await repository.save(an_intent())
 
 
 class TestAllInitiated:
-    def test_it_returns_open_intents_in_the_order_opened(
+    async def test_it_returns_open_intents_in_the_order_opened(
         self, repository: InMemoryPaymentIntentRepository
     ) -> None:
         first, second = an_intent("psk-ref-0001"), an_intent("psk-ref-0002")
-        repository.add(first)
-        repository.add(second)
+        await repository.add(first)
+        await repository.add(second)
 
-        assert repository.all_initiated() == (first, second)
+        assert await repository.all_initiated() == (first, second)
 
     @pytest.mark.parametrize("resolve", ["confirm", "fail", "abandon"])
-    def test_an_answered_intent_drops_out(
+    async def test_an_answered_intent_drops_out(
         self, repository: InMemoryPaymentIntentRepository, resolve: str
     ) -> None:
         """A confirmed, failed or abandoned intent has been answered. Nothing to chase."""
         intent = an_intent()
-        repository.add(intent)
+        await repository.add(intent)
 
         if resolve == "confirm":
             intent.confirm(amount=Money("20000"), at=AUGUST)
@@ -81,11 +83,11 @@ class TestAllInitiated:
                 ),
                 at=AUGUST,
             )
-        repository.save(intent)
+        await repository.save(intent)
 
-        assert repository.all_initiated() == ()
+        assert await repository.all_initiated() == ()
 
-    def test_an_empty_repository_answers_with_nothing(
+    async def test_an_empty_repository_answers_with_nothing(
         self, repository: InMemoryPaymentIntentRepository
     ) -> None:
-        assert repository.all_initiated() == ()
+        assert await repository.all_initiated() == ()

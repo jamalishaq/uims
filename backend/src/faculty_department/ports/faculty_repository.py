@@ -9,7 +9,7 @@ class FacultyRepositoryPort(ABC):
     """Persistence for the ``Faculty`` aggregate."""
 
     @abstractmethod
-    def add(self, faculty: Faculty) -> None:
+    async def add(self, faculty: Faculty) -> None:
         """Store a new faculty.
 
         Raises:
@@ -17,7 +17,7 @@ class FacultyRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, faculty: Faculty) -> None:
+    async def save(self, faculty: Faculty) -> None:
         """Persist changes to a faculty that is already stored.
 
         Raises:
@@ -25,9 +25,9 @@ class FacultyRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, faculty_id: str) -> Faculty | None:
+    async def get(self, faculty_id: str) -> Faculty | None:
         """Return the faculty, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_all(self) -> tuple[Faculty, ...]:
+    async def list_all(self) -> tuple[Faculty, ...]:
         """Every stored faculty, in the order it was added."""

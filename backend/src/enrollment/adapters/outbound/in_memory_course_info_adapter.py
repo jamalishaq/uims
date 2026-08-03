@@ -66,5 +66,5 @@ class InMemoryCourseInfoAdapter(CourseInfoPort):
             is_active=False,
         )
 
-    def course_for(self, course_id: str) -> CourseFacts | None:
+    async def course_for(self, course_id: str) -> CourseFacts | None:
         return self._courses.get(course_id)

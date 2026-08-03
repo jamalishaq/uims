@@ -57,33 +57,33 @@ def a_command(**overrides: object) -> ConfirmPaymentCommand:
 
 
 @pytest.fixture
-def an_admitted_account(accounts: AccountRepositoryPort) -> Account:
+async def an_admitted_account(accounts: AccountRepositoryPort) -> Account:
     account = Account.open(APPLICANT_ID, PROGRAM_ID)
     account.raise_acceptance_fee(SESSION_2026, Money("20000"))
     account.raise_matriculation_fee(SESSION_2026, Money("50000"))
-    accounts.add(account)
+    await accounts.add(account)
     return account
 
 
 @pytest.fixture
-def an_open_intent(
+async def an_open_intent(
     an_admitted_account: Account, intents: PaymentIntentRepositoryPort
 ) -> PaymentIntent:
     intent = PaymentIntent.initiate(
         reference=REFERENCE, party_id=APPLICANT_ID, amount=Money("20000"), initiated_at=JULY
     )
-    intents.add(intent)
+    await intents.add(intent)
     return intent
 
 
 class TestBankingTheMoney:
-    def test_a_confirmation_puts_the_money_on_the_ledger_and_moves_the_intent(
+    async def test_a_confirmation_puts_the_money_on_the_ledger_and_moves_the_intent(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
         an_admitted_account: Account,
     ) -> None:
-        result = confirm_payment.execute(a_command())
+        result = await confirm_payment.execute(a_command())
 
         assert isinstance(result.ledger_outcome, PaymentApplied)
         assert result.was_replay is False
@@ -92,46 +92,46 @@ class TestBankingTheMoney:
         assert an_admitted_account.total_paid == Money("20000")
         assert an_open_intent.status is PaymentIntentStatus.CONFIRMED
 
-    def test_the_ledger_records_the_confirmed_amount_and_not_the_intents(
+    async def test_the_ledger_records_the_confirmed_amount_and_not_the_intents(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
         an_admitted_account: Account,
     ) -> None:
-        confirm_payment.execute(a_command(amount=Decimal("12000")))
+        await confirm_payment.execute(a_command(amount=Decimal("12000")))
 
         assert an_admitted_account.total_paid == Money("12000")
         assert an_open_intent.amount == Money("20000")
         assert an_open_intent.confirmed_amount == Money("12000")
         assert an_admitted_account.outstanding == Money("58000")
 
-    def test_settling_the_gating_charge_is_announced(
+    async def test_settling_the_gating_charge_is_announced(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
         events: InMemoryEventPublisher,
     ) -> None:
         """The webhook path still produces ``AcceptanceFeePaid`` — via ``RecordPayment``."""
-        confirm_payment.execute(a_command())
+        await confirm_payment.execute(a_command())
 
         assert events.published == (AcceptanceFeePaid(applicant_id=APPLICANT_ID),)
 
-    def test_a_replay_reaches_the_ledgers_existing_no_op(
+    async def test_a_replay_reaches_the_ledgers_existing_no_op(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
         an_admitted_account: Account,
     ) -> None:
-        confirm_payment.execute(a_command())
+        await confirm_payment.execute(a_command())
 
-        replay = confirm_payment.execute(a_command())
+        replay = await confirm_payment.execute(a_command())
 
         assert replay.was_replay is True
         assert isinstance(replay.ledger_outcome, DuplicatePaymentIgnored)
         assert isinstance(replay.intent_outcome, PaymentIntentAlreadyResolved)
         assert len(an_admitted_account.payments) == 1
 
-    def test_the_party_is_taken_from_the_intent(
+    async def test_the_party_is_taken_from_the_intent(
         self,
         confirm_payment: ConfirmPayment,
         intents: PaymentIntentRepositoryPort,
@@ -141,8 +141,8 @@ class TestBankingTheMoney:
         account = Account.open(APPLICANT_ID, PROGRAM_ID)
         account.raise_acceptance_fee(SESSION_2026, Money("20000"))
         account.link_student_id(MATRIC_NUMBER)
-        accounts.add(account)
-        intents.add(
+        await accounts.add(account)
+        await intents.add(
             PaymentIntent.initiate(
                 reference=REFERENCE,
                 party_id=MATRIC_NUMBER,
@@ -151,7 +151,7 @@ class TestBankingTheMoney:
             )
         )
 
-        result = confirm_payment.execute(a_command())
+        result = await confirm_payment.execute(a_command())
 
         assert result.party_id == MATRIC_NUMBER
         assert account.total_paid == Money("20000")
@@ -166,19 +166,19 @@ class TestOrdering:
         def __init__(self, inner: PaymentIntentRepositoryPort) -> None:
             self._inner = inner
 
-        def add(self, intent: PaymentIntent) -> None:
-            self._inner.add(intent)
+        async def add(self, intent: PaymentIntent) -> None:
+            await self._inner.add(intent)
 
-        def save(self, intent: PaymentIntent) -> None:
+        async def save(self, intent: PaymentIntent) -> None:
             raise RuntimeError("the process died before the intent could be written")
 
-        def get(self, reference: str) -> PaymentIntent | None:
-            return self._inner.get(reference)
+        async def get(self, reference: str) -> PaymentIntent | None:
+            return await self._inner.get(reference)
 
-        def all_initiated(self) -> tuple[PaymentIntent, ...]:
-            return self._inner.all_initiated()
+        async def all_initiated(self) -> tuple[PaymentIntent, ...]:
+            return await self._inner.all_initiated()
 
-    def test_the_money_is_on_the_ledger_even_when_the_intent_cannot_be_saved(
+    async def test_the_money_is_on_the_ledger_even_when_the_intent_cannot_be_saved(
         self,
         intents: PaymentIntentRepositoryPort,
         record_payment: RecordPayment,
@@ -194,17 +194,17 @@ class TestOrdering:
         confirm = ConfirmPayment(self.SaveRefusingIntents(intents), record_payment)
 
         with pytest.raises(RuntimeError):
-            confirm.execute(a_command())
+            await confirm.execute(a_command())
 
         assert an_admitted_account.total_paid == Money("20000"), "the ledger was written first"
 
 
 class TestRefusals:
-    def test_a_reference_with_no_intent_is_refused_and_writes_nothing(
+    async def test_a_reference_with_no_intent_is_refused_and_writes_nothing(
         self, confirm_payment: ConfirmPayment, an_admitted_account: Account
     ) -> None:
         with pytest.raises(PaymentIntentNotFoundError):
-            confirm_payment.execute(a_command(reference="psk-ref-nobody-opened"))
+            await confirm_payment.execute(a_command(reference="psk-ref-nobody-opened"))
 
         assert an_admitted_account.payments == ()
 
@@ -213,14 +213,14 @@ class TestRefusals:
         with pytest.raises(InvalidPaymentIntentError, match="without an amount"):
             ConfirmPaymentCommand(reference=REFERENCE, paid_at=AUGUST, succeeded=True)
 
-    def test_a_reported_failure_leaves_the_ledger_alone(
+    async def test_a_reported_failure_leaves_the_ledger_alone(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
         an_admitted_account: Account,
         events: InMemoryEventPublisher,
     ) -> None:
-        result = confirm_payment.execute(
+        result = await confirm_payment.execute(
             a_command(succeeded=False, amount=None, failure_reason="insufficient funds")
         )
 
@@ -230,15 +230,15 @@ class TestRefusals:
         assert an_open_intent.status is PaymentIntentStatus.FAILED
         assert an_open_intent.failure_reason == "insufficient funds"
 
-    def test_a_gateway_that_confirms_then_fails_is_refused(
+    async def test_a_gateway_that_confirms_then_fails_is_refused(
         self, confirm_payment: ConfirmPayment, an_open_intent: PaymentIntent
     ) -> None:
-        confirm_payment.execute(a_command())
+        await confirm_payment.execute(a_command())
 
         with pytest.raises(PaymentIntentFinalError):
-            confirm_payment.execute(a_command(succeeded=False, amount=None))
+            await confirm_payment.execute(a_command(succeeded=False, amount=None))
 
-    def test_a_gateway_that_fails_then_confirms_banks_the_money_and_then_raises(
+    async def test_a_gateway_that_fails_then_confirms_banks_the_money_and_then_raises(
         self,
         confirm_payment: ConfirmPayment,
         an_open_intent: PaymentIntent,
@@ -251,9 +251,9 @@ class TestRefusals:
         wrong trade — an untidy intent is a question somebody answers, and unrecorded money is
         a student who cannot register against a debt they have settled.
         """
-        confirm_payment.execute(a_command(succeeded=False, amount=None))
+        await confirm_payment.execute(a_command(succeeded=False, amount=None))
 
         with pytest.raises(PaymentIntentFinalError):
-            confirm_payment.execute(a_command())
+            await confirm_payment.execute(a_command())
 
         assert an_admitted_account.total_paid == Money("20000")

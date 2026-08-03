@@ -16,7 +16,7 @@ class EnrollmentRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, enrollment: Enrollment) -> None:
+    async def add(self, enrollment: Enrollment) -> None:
         """Store a new registration.
 
         Raises:
@@ -24,7 +24,7 @@ class EnrollmentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, enrollment: Enrollment) -> None:
+    async def save(self, enrollment: Enrollment) -> None:
         """Persist changes to a registration that is already stored.
 
         Raises:
@@ -32,11 +32,11 @@ class EnrollmentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, enrollment_id: str) -> Enrollment | None:
+    async def get(self, enrollment_id: str) -> Enrollment | None:
         """Return the registration, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_for_student_in_term(self, student_id: str, term: Term) -> tuple[Enrollment, ...]:
+    async def list_for_student_in_term(self, student_id: str, term: Term) -> tuple[Enrollment, ...]:
         """Every course this student is registered for this term, in the order registered.
 
         One query, two questions, and deliberately so: the credit load a new registration
@@ -51,7 +51,7 @@ class EnrollmentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def has_registered_before(self, student_id: str, course_id: str) -> bool:
+    async def has_registered_before(self, student_id: str, course_id: str) -> bool:
         """Whether the student has ever registered for this course, in any term.
 
         Narrow on purpose. This answers exactly one question — is the registration in front

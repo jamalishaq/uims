@@ -120,7 +120,7 @@ class RegisterForCourse:
         self._clearance = clearance
         self._rule = rule or EligibilityRule()
 
-    def execute(self, command: RegisterForCourseCommand) -> RegistrationOutcome:
+    async def execute(self, command: RegisterForCourseCommand) -> RegistrationOutcome:
         """Decide the registration and record it.
 
         Returns:
@@ -139,20 +139,20 @@ class RegisterForCourse:
             ordinal=command.semester_ordinal,
         )
 
-        course = self._courses.course_for(command.course_id)
+        course = await self._courses.course_for(command.course_id)
         if course is None:
             raise CourseNotFoundError(f"no course known with id {command.course_id!r}")
 
-        offering = self._offerings.get(course.course_id, term)
+        offering = await self._offerings.get(course.course_id, term)
         if offering is None:
             raise CourseOfferingNotFoundError(
                 f"course {course.course_id!r} is not being offered in {term}"
             )
 
-        standing = self._standings.standing_for(command.student_id) or AcademicStanding.unrecorded(
+        standing = await self._standings.standing_for(
             command.student_id
-        )
-        registered = self._enrollments.list_for_student_in_term(command.student_id, term)
+        ) or AcademicStanding.unrecorded(command.student_id)
+        registered = await self._enrollments.list_for_student_in_term(command.student_id, term)
 
         failures = self._rule.unmet(
             course=course,
@@ -162,7 +162,7 @@ class RegisterForCourse:
             already_registered=any(
                 enrollment.course_id == course.course_id for enrollment in registered
             ),
-            is_financially_cleared=self._clearance.is_cleared_for_registration(
+            is_financially_cleared=await self._clearance.is_cleared_for_registration(
                 command.student_id, term
             ),
         )
@@ -178,7 +178,7 @@ class RegisterForCourse:
                 command, course, term, (self._rule.capacity_failure(course, offering),)
             )
 
-        enrollment = self._claim(command, course, offering, term, standing)
+        enrollment = await self._claim(command, course, offering, term, standing)
         return RegistrationAccepted(
             enrollment_id=enrollment.enrollment_id,
             student_id=enrollment.student_id,
@@ -204,7 +204,7 @@ class RegisterForCourse:
             reasons=failures,
         )
 
-    def _claim(
+    async def _claim(
         self,
         command: RegisterForCourseCommand,
         course: CourseFacts,
@@ -229,18 +229,18 @@ class RegisterForCourse:
         holds what was passed, and a course not in that set which the student is coming
         back to is exactly what CLAUDE.md section 5 calls a carry-over.
         """
-        self._offerings.save(offering)
+        await self._offerings.save(offering)
         enrollment = Enrollment.register(
             enrollment_id=command.enrollment_id,
             student_id=command.student_id,
             course=course,
             term=term,
-            is_carry_over=self._is_carry_over(command.student_id, course, standing),
+            is_carry_over=await self._is_carry_over(command.student_id, course, standing),
         )
-        self._enrollments.add(enrollment)
+        await self._enrollments.add(enrollment)
         return enrollment
 
-    def _is_carry_over(
+    async def _is_carry_over(
         self, student_id: str, course: CourseFacts, standing: AcademicStanding
     ) -> bool:
         """Whether the student has been here before and not passed.
@@ -253,4 +253,4 @@ class RegisterForCourse:
         """
         if standing.has_passed(course.course_id):
             return False
-        return self._enrollments.has_registered_before(student_id, course.course_id)
+        return await self._enrollments.has_registered_before(student_id, course.course_id)

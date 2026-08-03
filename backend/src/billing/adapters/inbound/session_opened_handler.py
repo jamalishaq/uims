@@ -57,20 +57,20 @@ class SessionOpenedHandler:
     def __init__(self, apply_session_fees: ApplySessionFees) -> None:
         self._apply_session_fees = apply_session_fees
 
-    def handle(self, message: SessionOpenedMessage) -> SessionFeesApplied:
+    async def handle(self, message: SessionOpenedMessage) -> SessionFeesApplied:
         """Charge every active account this session's fee.
 
         Redelivery is normal: a replayed ``SessionOpened`` re-runs the batch, and every
         account already charged answers ``ChargeAlreadyRaised``. Nobody is billed twice, and
         the summary tells the two apart.
         """
-        return self._apply_session_fees.execute(message.session_id)
+        return await self._apply_session_fees.execute(message.session_id)
 
-    def on_message(self, payload: Mapping[str, object]) -> None:
+    async def on_message(self, payload: Mapping[str, object]) -> None:
         """Subscribe *this* to a bus: deserialise, then handle.
 
         The signature a transport can call without knowing anything about this context —
         which is what lets the wiring that connects Faculty & Department to Billing be a
         single line in a composition root, importing neither context's event type.
         """
-        self.handle(SessionOpenedMessage.from_payload(payload))
+        await self.handle(SessionOpenedMessage.from_payload(payload))

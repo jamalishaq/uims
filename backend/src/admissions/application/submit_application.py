@@ -51,7 +51,7 @@ class SubmitApplication:
         self._applicants = applicants
         self._programs = programs
 
-    def execute(self, command: SubmitApplicationCommand) -> Applicant:
+    async def execute(self, command: SubmitApplicationCommand) -> Applicant:
         """Store and return the new application.
 
         Returns:
@@ -78,7 +78,7 @@ class SubmitApplication:
             tuple(UtmeSubjectScore(subject, score) for subject, score in command.utme_scores)
         )
 
-        program = self._programs.program_for(command.program_id, command.session_id)
+        program = await self._programs.program_for(command.program_id, command.session_id)
         if program is None:
             raise ProgramNotFoundError(
                 f"no program is known with id {command.program_id!r} "
@@ -96,5 +96,5 @@ class SubmitApplication:
             bio_data=bio_data,
             utme_result=utme_result,
         )
-        self._applicants.add(applicant)
+        await self._applicants.add(applicant)
         return applicant

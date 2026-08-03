@@ -31,9 +31,9 @@ class ListDepartmentCourses:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: ListDepartmentCoursesCommand) -> tuple[Course, ...]:
+    async def execute(self, command: ListDepartmentCoursesCommand) -> tuple[Course, ...]:
         """Return the department's courses, in the order they were added."""
-        courses = self._courses.list_for_department(command.department_id)
+        courses = await self._courses.list_for_department(command.department_id)
         if command.include_retired:
             return courses
         return tuple(course for course in courses if course.is_active)

@@ -264,7 +264,7 @@ class PaymentWebhookHandler:
         """Which header the transport in front of this should hand over as ``signature``."""
         return self._verifier.header
 
-    def handle(self, raw_body: bytes, signature: str | None) -> PaymentConfirmed | None:
+    async def handle(self, raw_body: bytes, signature: str | None) -> PaymentConfirmed | None:
         """Verify, then act. In that order, and the order is the security property.
 
         Returns what the confirmation did, or ``None`` for an event this context has no
@@ -293,7 +293,7 @@ class PaymentWebhookHandler:
         if message is None:
             return None
 
-        return self._confirm_payment.execute(
+        return await self._confirm_payment.execute(
             ConfirmPaymentCommand(
                 reference=message.reference,
                 paid_at=message.occurred_at,

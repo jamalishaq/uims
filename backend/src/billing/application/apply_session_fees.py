@@ -68,13 +68,13 @@ class ApplySessionFees:
         self._schedules = schedules
         self._events = events
 
-    def execute(self, session_id: str) -> SessionFeesApplied:
+    async def execute(self, session_id: str) -> SessionFeesApplied:
         """Apply the session's schedule to every active account.
 
         Raises:
             FeeScheduleNotPublishedError: the session has no published fees at all.
         """
-        schedule = self._schedules.get(session_id)
+        schedule = await self._schedules.get(session_id)
         if schedule is None:
             raise FeeScheduleNotPublishedError(
                 f"no fee schedule is published for session {session_id!r}, so its fees cannot "
@@ -85,7 +85,7 @@ class ApplySessionFees:
         already_charged: list[str] = []
         unpriced: list[str] = []
 
-        for account in self._accounts.all_active():
+        for account in await self._accounts.all_active():
             fee = schedule.session_fee_for(account.program_id, account.level)
             if fee is None:
                 unpriced.append(account.party_id)
@@ -93,10 +93,10 @@ class ApplySessionFees:
 
             outcome = account.raise_session_fee(schedule.session_id, fee)
             if isinstance(outcome, ChargeRaised):
-                self._accounts.save(account)
+                await self._accounts.save(account)
                 charged.append(account.party_id)
                 for event in outcome.events:
-                    self._events.publish(event)
+                    await self._events.publish(event)
             else:
                 already_charged.append(account.party_id)
 

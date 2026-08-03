@@ -27,41 +27,41 @@ def adapter() -> InMemoryDepartmentCodeAdapter:
 
 
 class TestAnswering:
-    def test_it_answers_in_this_context_s_own_types(
+    async def test_it_answers_in_this_context_s_own_types(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         """Nothing of Faculty & Department's crosses the port — that is the whole job."""
         adapter.register(PROGRAM_ID, SESSION_ID, "0591", 2026)
 
-        assert adapter.format_inputs_for(PROGRAM_ID, SESSION_ID) == MatricFormatInputs(
+        assert await adapter.format_inputs_for(PROGRAM_ID, SESSION_ID) == MatricFormatInputs(
             department_code=DepartmentCode("0591"), entry_year=EntryYear(2026)
         )
 
-    def test_an_unknown_program_is_answered_with_nothing(
+    async def test_an_unknown_program_is_answered_with_nothing(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         """A question with a correct negative reply, not a failure. What to do about it
         is the application layer's judgment."""
-        assert adapter.format_inputs_for("prog-nobody", SESSION_ID) is None
+        assert await adapter.format_inputs_for("prog-nobody", SESSION_ID) is None
 
-    def test_a_program_in_a_session_it_has_no_placement_for_is_answered_with_nothing(
+    async def test_a_program_in_a_session_it_has_no_placement_for_is_answered_with_nothing(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         adapter.register(PROGRAM_ID, SESSION_ID, "0591", 2026)
 
-        assert adapter.format_inputs_for(PROGRAM_ID, "sess-2030") is None
+        assert await adapter.format_inputs_for(PROGRAM_ID, "sess-2030") is None
 
-    def test_one_program_can_run_across_sessions(
+    async def test_one_program_can_run_across_sessions(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         adapter.register(PROGRAM_ID, SESSION_ID, "0591", 2026)
         adapter.register(PROGRAM_ID, "sess-2027", "0591", 2027)
 
-        assert adapter.format_inputs_for(PROGRAM_ID, "sess-2027") == MatricFormatInputs(
+        assert await adapter.format_inputs_for(PROGRAM_ID, "sess-2027") == MatricFormatInputs(
             department_code=DepartmentCode("0591"), entry_year=EntryYear(2027)
         )
 
-    def test_two_programs_can_share_a_department(
+    async def test_two_programs_can_share_a_department(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         """Software Engineering and Computer Science both sit under one department, and
@@ -69,17 +69,17 @@ class TestAnswering:
         adapter.register(PROGRAM_ID, SESSION_ID, "0591", 2026)
         adapter.register("prog-swe-bsc", SESSION_ID, "0591", 2026)
 
-        first = adapter.format_inputs_for(PROGRAM_ID, SESSION_ID)
-        second = adapter.format_inputs_for("prog-swe-bsc", SESSION_ID)
+        first = await adapter.format_inputs_for(PROGRAM_ID, SESSION_ID)
+        second = await adapter.format_inputs_for("prog-swe-bsc", SESSION_ID)
         assert first == second
 
-    def test_a_later_registration_replaces_an_earlier_one(
+    async def test_a_later_registration_replaces_an_earlier_one(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         adapter.register(PROGRAM_ID, SESSION_ID, "0591", 2026)
         adapter.register(PROGRAM_ID, SESSION_ID, "0672", 2026)
 
-        inputs = adapter.format_inputs_for(PROGRAM_ID, SESSION_ID)
+        inputs = await adapter.format_inputs_for(PROGRAM_ID, SESSION_ID)
         assert inputs is not None
         assert inputs.department_code == DepartmentCode("0672")
 
@@ -102,10 +102,10 @@ class TestTranslationFailsAtTheBoundary:
         with pytest.raises(InvalidEntryYearError):
             adapter.register(PROGRAM_ID, SESSION_ID, "0591", year)
 
-    def test_a_rejected_registration_leaves_no_placement_behind(
+    async def test_a_rejected_registration_leaves_no_placement_behind(
         self, adapter: InMemoryDepartmentCodeAdapter
     ) -> None:
         with pytest.raises(InvalidDepartmentCodeError):
             adapter.register(PROGRAM_ID, SESSION_ID, "CSC", 2026)
 
-        assert adapter.format_inputs_for(PROGRAM_ID, SESSION_ID) is None
+        assert await adapter.format_inputs_for(PROGRAM_ID, SESSION_ID) is None

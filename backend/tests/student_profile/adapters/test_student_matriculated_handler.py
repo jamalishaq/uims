@@ -9,7 +9,7 @@ The interleaving tests are the ones to read. If the event path ever grew its own
 or its own counter, those are the tests that would fail.
 """
 
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 from datetime import date
 
 import pytest
@@ -56,32 +56,32 @@ def a_manual_command(**overrides: object) -> RegisterNewStudentCommand:
 
 
 class TestTheEventPath:
-    def test_a_matriculated_applicant_becomes_a_student_with_a_matric_number(
+    async def test_a_matriculated_applicant_becomes_a_student_with_a_matric_number(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        student = matriculation_handler.handle(a_message())
+        student = await matriculation_handler.handle(a_message())
 
         assert student.matric_number == MatricNumber("260591001")
 
-    def test_the_student_is_stored(
+    async def test_the_student_is_stored(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         students: StudentRepositoryPort,
     ) -> None:
-        student = matriculation_handler.handle(a_message())
+        student = await matriculation_handler.handle(a_message())
 
-        assert students.get(student.student_id) is student
+        assert await students.get(student.student_id) is student
 
-    def test_the_student_remembers_which_applicant_they_were(
+    async def test_the_student_remembers_which_applicant_they_were(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
         """Billing's account was opened under that applicant id; this is the link to it."""
-        assert matriculation_handler.handle(a_message()).applicant_id == "app-0001"
+        assert (await matriculation_handler.handle(a_message())).applicant_id == "app-0001"
 
-    def test_the_bio_data_carried_by_the_event_reaches_the_student(
+    async def test_the_bio_data_carried_by_the_event_reaches_the_student(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        student = matriculation_handler.handle(
+        student = await matriculation_handler.handle(
             a_message(email="adaeze@lasu.edu.ng", phone_number="08012345678")
         )
 
@@ -90,35 +90,35 @@ class TestTheEventPath:
         assert student.bio_data.email == "adaeze@lasu.edu.ng"
         assert student.bio_data.phone_number == "08012345678"
 
-    def test_the_offered_program_is_the_one_the_student_is_placed_in(
+    async def test_the_offered_program_is_the_one_the_student_is_placed_in(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
         """Admissions may have offered an alternative to what was applied for; the event
         carries the offered program, and nothing here second-guesses it."""
-        student = matriculation_handler.handle(a_message(program_id=MCB_PROGRAM_ID))
+        student = await matriculation_handler.handle(a_message(program_id=MCB_PROGRAM_ID))
 
         assert student.program_id == MCB_PROGRAM_ID
         assert student.matric_number == MatricNumber("260672001")
 
-    def test_a_matriculated_student_starts_at_100_level_unless_the_event_says_otherwise(
+    async def test_a_matriculated_student_starts_at_100_level_unless_the_event_says_otherwise(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        assert matriculation_handler.handle(a_message()).entry_level == Level(100)
-        assert matriculation_handler.handle(
-            a_message(applicant_id="app-0002", entry_level=200)
+        assert (await matriculation_handler.handle(a_message())).entry_level == Level(100)
+        assert (
+            await matriculation_handler.handle(a_message(applicant_id="app-0002", entry_level=200))
         ).entry_level == Level(200)
 
-    def test_the_student_id_is_this_context_s_to_mint(
+    async def test_the_student_id_is_this_context_s_to_mint(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
         """It is not the applicant id and not the matric number: Admissions does not name
         our aggregate, and the matric number is not known until the use case runs."""
-        student = matriculation_handler.handle(a_message())
+        student = await matriculation_handler.handle(a_message())
 
         assert student.student_id not in {"app-0001", student.matric_number.value}
         assert student.student_id
 
-    def test_an_injected_id_source_is_used_when_one_is_given(
+    async def test_an_injected_id_source_is_used_when_one_is_given(
         self, register_new_student: RegisterNewStudent, students: StudentRepositoryPort
     ) -> None:
         handler = StudentMatriculatedHandler(
@@ -127,50 +127,50 @@ class TestTheEventPath:
             new_student_id=lambda: "stu-injected",
         )
 
-        assert handler.handle(a_message()).student_id == "stu-injected"
+        assert (await handler.handle(a_message())).student_id == "stu-injected"
 
-    def test_an_unknown_program_stops_the_matriculation(
+    async def test_an_unknown_program_stops_the_matriculation(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
         with pytest.raises(ProgramPlacementUnknownError):
-            matriculation_handler.handle(a_message(program_id="prog-nobody"))
+            await matriculation_handler.handle(a_message(program_id="prog-nobody"))
 
 
 class TestRedelivery:
     """At-least-once delivery is normal. Two matric numbers for one applicant is not."""
 
-    def test_the_same_event_twice_produces_one_student(
+    async def test_the_same_event_twice_produces_one_student(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        first = matriculation_handler.handle(a_message())
-        second = matriculation_handler.handle(a_message())
+        first = await matriculation_handler.handle(a_message())
+        second = await matriculation_handler.handle(a_message())
 
         assert second is first
 
-    def test_a_redelivery_consumes_no_matric_number(
+    async def test_a_redelivery_consumes_no_matric_number(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         sequences: InMemoryMatricSequenceRepository,
     ) -> None:
-        matriculation_handler.handle(a_message())
-        matriculation_handler.handle(a_message())
+        await matriculation_handler.handle(a_message())
+        await matriculation_handler.handle(a_message())
 
         assert [sequence.issued for sequence in sequences.all()] == [1]
 
-    def test_a_redelivery_does_not_displace_the_next_applicant(
+    async def test_a_redelivery_does_not_displace_the_next_applicant(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        matriculation_handler.handle(a_message(applicant_id="app-0001"))
-        matriculation_handler.handle(a_message(applicant_id="app-0001"))
+        await matriculation_handler.handle(a_message(applicant_id="app-0001"))
+        await matriculation_handler.handle(a_message(applicant_id="app-0001"))
 
-        next_student = matriculation_handler.handle(a_message(applicant_id="app-0002"))
+        next_student = await matriculation_handler.handle(a_message(applicant_id="app-0002"))
         assert next_student.matric_number == MatricNumber("260591002")
 
-    def test_two_different_applicants_are_two_students(
+    async def test_two_different_applicants_are_two_students(
         self, matriculation_handler: StudentMatriculatedHandler
     ) -> None:
-        first = matriculation_handler.handle(a_message(applicant_id="app-0001"))
-        second = matriculation_handler.handle(a_message(applicant_id="app-0002"))
+        first = await matriculation_handler.handle(a_message(applicant_id="app-0001"))
+        second = await matriculation_handler.handle(a_message(applicant_id="app-0002"))
 
         assert first is not second
         assert first.matric_number != second.matric_number
@@ -179,18 +179,18 @@ class TestRedelivery:
 class TestBothPathsShareOneIssuer:
     """The requirement this phase turns on, stated four ways."""
 
-    def test_both_paths_produce_the_same_shape_of_number(
+    async def test_both_paths_produce_the_same_shape_of_number(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         register_new_student: RegisterNewStudent,
     ) -> None:
-        by_event = matriculation_handler.handle(a_message())
-        by_hand = register_new_student.execute(a_manual_command())
+        by_event = await matriculation_handler.handle(a_message())
+        by_hand = await register_new_student.execute(a_manual_command())
 
         assert by_event.matric_number.value[:6] == by_hand.matric_number.value[:6]
         assert len(by_event.matric_number.value) == len(by_hand.matric_number.value)
 
-    def test_the_two_paths_continue_one_sequence(
+    async def test_the_two_paths_continue_one_sequence(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         register_new_student: RegisterNewStudent,
@@ -198,10 +198,14 @@ class TestBothPathsShareOneIssuer:
         """Interleaved deliberately: a second counter behind either path would show up
         here as a repeated ordinal."""
         issued = [
-            matriculation_handler.handle(a_message(applicant_id="app-0001")).matric_number,
-            register_new_student.execute(a_manual_command(student_id="stu-1")).matric_number,
-            matriculation_handler.handle(a_message(applicant_id="app-0002")).matric_number,
-            register_new_student.execute(a_manual_command(student_id="stu-2")).matric_number,
+            (await matriculation_handler.handle(a_message(applicant_id="app-0001"))).matric_number,
+            (
+                await register_new_student.execute(a_manual_command(student_id="stu-1"))
+            ).matric_number,
+            (await matriculation_handler.handle(a_message(applicant_id="app-0002"))).matric_number,
+            (
+                await register_new_student.execute(a_manual_command(student_id="stu-2"))
+            ).matric_number,
         ]
 
         assert [number.value for number in issued] == [
@@ -211,20 +215,20 @@ class TestBothPathsShareOneIssuer:
             "260591004",
         ]
 
-    def test_the_paths_share_one_counter_per_intake(
+    async def test_the_paths_share_one_counter_per_intake(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         register_new_student: RegisterNewStudent,
         sequences: InMemoryMatricSequenceRepository,
     ) -> None:
-        matriculation_handler.handle(a_message())
-        register_new_student.execute(a_manual_command())
+        await matriculation_handler.handle(a_message())
+        await register_new_student.execute(a_manual_command())
 
         assert {sequence.key: sequence.issued for sequence in sequences.all()} == {
             ("0591", 2026): 2
         }
 
-    def test_the_two_paths_racing_cannot_duplicate_a_number(
+    async def test_the_two_paths_racing_cannot_duplicate_a_number(
         self,
         matriculation_handler: StudentMatriculatedHandler,
         register_new_student: RegisterNewStudent,
@@ -232,17 +236,16 @@ class TestBothPathsShareOneIssuer:
         """The realistic failure: a bulk matriculation running while a registrar types."""
         count = 60
 
-        def create(index: int) -> str:
+        async def create(index: int) -> str:
             if index % 2:
-                return matriculation_handler.handle(
-                    a_message(applicant_id=f"app-{index:04d}")
+                return (
+                    await matriculation_handler.handle(a_message(applicant_id=f"app-{index:04d}"))
                 ).matric_number.value
-            return register_new_student.execute(
-                a_manual_command(student_id=f"stu-{index:04d}")
+            return (
+                await register_new_student.execute(a_manual_command(student_id=f"stu-{index:04d}"))
             ).matric_number.value
 
-        with ThreadPoolExecutor(max_workers=16) as pool:
-            issued = list(pool.map(create, range(count)))
+        issued = await asyncio.gather(*(create(index) for index in range(count)))
 
         assert len(set(issued)) == count
         assert set(issued) == {f"260591{index:03d}" for index in range(1, count + 1)}

@@ -30,7 +30,7 @@ class ReadCourse:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: ReadCourseCommand) -> Course:
+    async def execute(self, command: ReadCourseCommand) -> Course:
         """Return the course.
 
         Absence is an error here, unlike at the port, where ``get`` returns ``None``.
@@ -40,7 +40,7 @@ class ReadCourse:
         Raises:
             CourseNotFoundError: no such course is stored.
         """
-        course = self._courses.get(command.course_id)
+        course = await self._courses.get(command.course_id)
         if course is None:
             raise CourseNotFoundError(f"no course stored with id {command.course_id!r}")
         return course

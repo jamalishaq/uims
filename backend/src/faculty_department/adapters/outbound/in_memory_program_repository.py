@@ -11,16 +11,16 @@ class InMemoryProgramRepository(ProgramRepositoryPort):
     def __init__(self) -> None:
         self._store = InMemoryStore[Program]("program", lambda program: program.program_id)
 
-    def add(self, program: Program) -> None:
+    async def add(self, program: Program) -> None:
         self._store.add(program)
 
-    def save(self, program: Program) -> None:
+    async def save(self, program: Program) -> None:
         self._store.save(program)
 
-    def get(self, program_id: str) -> Program | None:
+    async def get(self, program_id: str) -> Program | None:
         return self._store.get(program_id)
 
-    def list_for_department(self, department_id: str) -> tuple[Program, ...]:
+    async def list_for_department(self, department_id: str) -> tuple[Program, ...]:
         return tuple(
             program for program in self._store.all() if program.department_id == department_id
         )

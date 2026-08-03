@@ -68,7 +68,7 @@ class RecordSubmittedGrade:
         self._records = records
         self._courses = courses
 
-    def execute(self, command: RecordSubmittedGradeCommand) -> GradeRecorded:
+    async def execute(self, command: RecordSubmittedGradeCommand) -> GradeRecorded:
         """Record the grade, opening the student's record if this is their first.
 
         Raises:
@@ -80,7 +80,7 @@ class RecordSubmittedGrade:
             AcademicRecordsError: the score or an identifier is invalid. Domain errors pass
                 through untranslated — the domain already says exactly what went wrong.
         """
-        credits = self._courses.credits_for(command.course_id)
+        credits = await self._courses.credits_for(command.course_id)
         if credits is None:
             raise CourseCreditsUnavailableError(
                 f"the catalog does not know course {command.course_id!r}, so the grade "
@@ -88,7 +88,7 @@ class RecordSubmittedGrade:
                 "cannot be recorded"
             )
 
-        record = self._records.get(command.student_id)
+        record = await self._records.get(command.student_id)
         is_new_record = record is None
         if record is None:
             record = AcademicRecord.open(command.student_id)
@@ -102,9 +102,9 @@ class RecordSubmittedGrade:
         )
 
         if is_new_record:
-            self._records.add(record)
+            await self._records.add(record)
         elif not already_recorded:
-            self._records.save(record)
+            await self._records.save(record)
 
         return GradeRecorded(
             student_id=record.student_id,

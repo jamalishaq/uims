@@ -13,7 +13,7 @@ class LecturerRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, lecturer: Lecturer) -> None:
+    async def add(self, lecturer: Lecturer) -> None:
         """Store a new lecturer.
 
         Raises:
@@ -21,7 +21,7 @@ class LecturerRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, lecturer: Lecturer) -> None:
+    async def save(self, lecturer: Lecturer) -> None:
         """Persist changes to a lecturer that is already stored.
 
         Raises:
@@ -29,9 +29,9 @@ class LecturerRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, lecturer_id: str) -> Lecturer | None:
+    async def get(self, lecturer_id: str) -> Lecturer | None:
         """Return the lecturer, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_for_department(self, department_id: str) -> tuple[Lecturer, ...]:
+    async def list_for_department(self, department_id: str) -> tuple[Lecturer, ...]:
         """Every lecturer in one department, in the order it was added."""

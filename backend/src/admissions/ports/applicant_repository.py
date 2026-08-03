@@ -15,7 +15,7 @@ class ApplicantRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, applicant: Applicant) -> None:
+    async def add(self, applicant: Applicant) -> None:
         """Store a new application.
 
         Raises:
@@ -23,7 +23,7 @@ class ApplicantRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, applicant: Applicant) -> None:
+    async def save(self, applicant: Applicant) -> None:
         """Persist changes to an application that is already stored.
 
         Raises:
@@ -31,11 +31,11 @@ class ApplicantRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, applicant_id: str) -> Applicant | None:
+    async def get(self, applicant_id: str) -> Applicant | None:
         """Return the applicant, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_for_session(self, session_id: str) -> tuple[Applicant, ...]:
+    async def list_for_session(self, session_id: str) -> tuple[Applicant, ...]:
         """Every application made for one session, in the order it was added.
 
         Session-scoped rather than wholesale: admissions work is done a session at a time,

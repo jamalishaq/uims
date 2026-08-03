@@ -66,7 +66,7 @@ class ScreenApplicant:
         self._requirements = requirements
         self._rule = rule or SubjectCombinationRule()
 
-    def execute(self, command: ScreenApplicantCommand) -> ScreeningOutcome:
+    async def execute(self, command: ScreenApplicantCommand) -> ScreeningOutcome:
         """Screen the applicant and return what was found.
 
         An applicant who does not qualify is closed off here with ``record_no_offer()``
@@ -86,11 +86,13 @@ class ScreenApplicant:
             ApplicantAlreadyScreenedError: the applicant has already been screened.
             ApplicationOutcomeFinalError: the application already reached an outcome.
         """
-        applicant = self._applicants.get(command.applicant_id)
+        applicant = await self._applicants.get(command.applicant_id)
         if applicant is None:
             raise ApplicantNotFoundError(f"no applicant stored with id {command.applicant_id!r}")
 
-        requirement = self._requirements.get(applicant.applied_program_id, applicant.session_id)
+        requirement = await self._requirements.get(
+            applicant.applied_program_id, applicant.session_id
+        )
         if requirement is None:
             raise EntryRequirementNotFoundError(
                 f"no entry requirement published for program "
@@ -104,14 +106,14 @@ class ScreenApplicant:
         unmet = self._rule.unmet(requirement, applicant.utme_result)
         if unmet:
             applicant.record_no_offer()
-            self._applicants.save(applicant)
+            await self._applicants.save(applicant)
             return ApplicantNotQualified(
                 applicant_id=applicant.applicant_id,
                 program_id=applicant.applied_program_id,
                 unmet=unmet,
             )
 
-        self._applicants.save(applicant)
+        await self._applicants.save(applicant)
         return ApplicantQualified(
             applicant_id=applicant.applicant_id,
             program_id=applicant.applied_program_id,

@@ -51,7 +51,7 @@ class StubPaymentGateway(PaymentGatewayPort):
 
     # ---- the port ----
 
-    def verify(self, reference: str) -> GatewayVerification:
+    async def verify(self, reference: str) -> GatewayVerification:
         """Return the scripted answer, defaulting to "never heard of it".
 
         The default is :attr:`~billing.domain.gateway.GatewayStatus.UNKNOWN` because that is

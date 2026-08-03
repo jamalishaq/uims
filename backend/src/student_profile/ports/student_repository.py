@@ -10,7 +10,7 @@ class StudentRepositoryPort(ABC):
     """Persistence for the ``Student`` aggregate."""
 
     @abstractmethod
-    def add(self, student: Student) -> None:
+    async def add(self, student: Student) -> None:
         """Store a new student.
 
         Raises:
@@ -18,7 +18,7 @@ class StudentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, student: Student) -> None:
+    async def save(self, student: Student) -> None:
         """Persist changes to a student who is already stored.
 
         Raises:
@@ -26,11 +26,11 @@ class StudentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, student_id: str) -> Student | None:
+    async def get(self, student_id: str) -> Student | None:
         """Return the student, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def find_by_matric_number(self, matric_number: MatricNumber) -> Student | None:
+    async def find_by_matric_number(self, matric_number: MatricNumber) -> Student | None:
         """Return the student holding this matric number, or ``None``.
 
         The lookup every other context ultimately needs: a matric number is what a
@@ -38,7 +38,7 @@ class StudentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def find_by_applicant(self, applicant_id: str) -> Student | None:
+    async def find_by_applicant(self, applicant_id: str) -> Student | None:
         """Return the student matriculated from this applicant, or ``None``.
 
         This is what makes consuming ``StudentMatriculated`` idempotent. Event delivery

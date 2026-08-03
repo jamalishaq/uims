@@ -14,5 +14,5 @@ class EventPublisherPort(ABC):
     """Publishes a domain event to whatever transport the adapter provides."""
 
     @abstractmethod
-    def publish(self, event: DomainEvent) -> None:
+    async def publish(self, event: DomainEvent) -> None:
         """Announce that ``event`` happened."""

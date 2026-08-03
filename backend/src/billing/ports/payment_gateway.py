@@ -61,7 +61,7 @@ class PaymentGatewayPort(ABC):
     """Asks the gateway what it knows about one payment reference."""
 
     @abstractmethod
-    def verify(self, reference: str) -> GatewayVerification:
+    async def verify(self, reference: str) -> GatewayVerification:
         """Return what the gateway reports about ``reference``.
 
         A reference the gateway does not recognise is a normal answer —

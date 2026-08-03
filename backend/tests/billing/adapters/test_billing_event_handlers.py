@@ -42,43 +42,43 @@ class TestOfferAccepted:
     def test_subscribes_under_the_publisher_s_own_event_name(self) -> None:
         assert OFFER_ACCEPTED == "OfferAccepted"
 
-    def test_an_accepted_offer_opens_a_ledger_with_both_charges(
+    async def test_an_accepted_offer_opens_a_ledger_with_both_charges(
         self,
         offer_accepted_handler: OfferAcceptedHandler,
         accounts: AccountRepositoryPort,
         published_schedule: FeeSchedule,
     ) -> None:
-        offer_accepted_handler.handle(an_offer())
+        await offer_accepted_handler.handle(an_offer())
 
-        stored = accounts.get(APPLICANT_ID)
+        stored = await accounts.get(APPLICANT_ID)
         assert stored is not None
         assert [charge.kind for charge in stored.charges] == [
             ChargeKind.ACCEPTANCE,
             ChargeKind.MATRICULATION,
         ]
 
-    def test_a_message_with_no_level_uses_billing_s_entry_level(
+    async def test_a_message_with_no_level_uses_billing_s_entry_level(
         self,
         offer_accepted_handler: OfferAcceptedHandler,
         accounts: AccountRepositoryPort,
         published_schedule: FeeSchedule,
     ) -> None:
         """Admissions has no opinion about a level, and the adapter does not invent one."""
-        offer_accepted_handler.handle(an_offer())
-        stored = accounts.get(APPLICANT_ID)
+        await offer_accepted_handler.handle(an_offer())
+        stored = await accounts.get(APPLICANT_ID)
         assert stored is not None
         assert stored.level == Level(100)
 
-    def test_redelivery_opens_no_second_account(
+    async def test_redelivery_opens_no_second_account(
         self,
         offer_accepted_handler: OfferAcceptedHandler,
         accounts: AccountRepositoryPort,
         published_schedule: FeeSchedule,
     ) -> None:
-        first = offer_accepted_handler.handle(an_offer())
-        second = offer_accepted_handler.handle(an_offer())
+        first = await offer_accepted_handler.handle(an_offer())
+        second = await offer_accepted_handler.handle(an_offer())
 
-        stored = accounts.get(APPLICANT_ID)
+        stored = await accounts.get(APPLICANT_ID)
         assert stored is not None
         assert (first.was_already_open, second.was_already_open) == (False, True)
         assert len(stored.charges) == 2
@@ -117,33 +117,33 @@ class TestSessionOpened:
         with pytest.raises(KeyError):
             SessionOpenedMessage.from_payload({"academic_year": {"value": 2026}})
 
-    def test_charges_every_priced_account_when_the_session_opens(
+    async def test_charges_every_priced_account_when_the_session_opens(
         self,
         session_opened_handler: SessionOpenedHandler,
         accounts: AccountRepositoryPort,
         published_schedule: FeeSchedule,
     ) -> None:
-        accounts.add(Account.open(APPLICANT_ID, CSC_PROGRAM_ID))
+        await accounts.add(Account.open(APPLICANT_ID, CSC_PROGRAM_ID))
 
-        result = session_opened_handler.handle(SessionOpenedMessage(session_id=SESSION_2026))
+        result = await session_opened_handler.handle(SessionOpenedMessage(session_id=SESSION_2026))
 
-        stored = accounts.get(APPLICANT_ID)
+        stored = await accounts.get(APPLICANT_ID)
         assert stored is not None
         assert result.charged == (APPLICANT_ID,)
         assert stored.charge_for(ChargeKind.SESSION, SESSION_2026) is not None
 
-    def test_a_redelivered_session_charges_nobody_twice(
+    async def test_a_redelivered_session_charges_nobody_twice(
         self,
         session_opened_handler: SessionOpenedHandler,
         accounts: AccountRepositoryPort,
         published_schedule: FeeSchedule,
     ) -> None:
-        accounts.add(Account.open(APPLICANT_ID, CSC_PROGRAM_ID))
+        await accounts.add(Account.open(APPLICANT_ID, CSC_PROGRAM_ID))
         payload = {"session_id": SESSION_2026, "academic_year": {"value": 2026}}
 
-        session_opened_handler.on_message(payload)
-        session_opened_handler.on_message(payload)
+        await session_opened_handler.on_message(payload)
+        await session_opened_handler.on_message(payload)
 
-        stored = accounts.get(APPLICANT_ID)
+        stored = await accounts.get(APPLICANT_ID)
         assert stored is not None
         assert len(stored.charges_for_session(SESSION_2026)) == 1

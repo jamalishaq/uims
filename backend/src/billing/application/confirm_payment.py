@@ -117,7 +117,7 @@ class ConfirmPayment:
         self._intents = intents
         self._record_payment = record_payment
 
-    def execute(self, command: ConfirmPaymentCommand) -> PaymentConfirmed:
+    async def execute(self, command: ConfirmPaymentCommand) -> PaymentConfirmed:
         """Bank the money if there is any, then move the intent.
 
         Raises:
@@ -131,7 +131,7 @@ class ConfirmPayment:
             AccountNotFoundError: the intent names a party whose account has since vanished.
             BillingError: the amount, the reference or the timestamp is invalid.
         """
-        intent = self._intents.get(command.reference)
+        intent = await self._intents.get(command.reference)
         if intent is None:
             raise PaymentIntentNotFoundError(
                 f"no payment intent was opened under reference {command.reference!r}, so there "
@@ -140,11 +140,11 @@ class ConfirmPayment:
             )
 
         if not command.succeeded or command.amount is None:
-            return self._record_failure(intent, command)
+            return await self._record_failure(intent, command)
 
         # The ledger first. See this module's docstring: a crash after this line is healed by
         # the next sweep, and a crash after the intent moves would never be noticed at all.
-        recorded = self._record_payment.execute(
+        recorded = await self._record_payment.execute(
             RecordPaymentCommand(
                 party_id=intent.party_id,
                 gateway_ref=intent.reference,
@@ -155,7 +155,7 @@ class ConfirmPayment:
 
         outcome = intent.confirm(amount=Money(command.amount), at=command.paid_at)
         if outcome.changed:
-            self._intents.save(intent)
+            await self._intents.save(intent)
 
         return PaymentConfirmed(
             reference=intent.reference,
@@ -170,7 +170,7 @@ class ConfirmPayment:
             was_replay=not outcome.changed,
         )
 
-    def _record_failure(
+    async def _record_failure(
         self, intent: PaymentIntent, command: ConfirmPaymentCommand
     ) -> PaymentConfirmed:
         """A reported failure moves the intent and leaves the ledger completely alone."""
@@ -179,7 +179,7 @@ class ConfirmPayment:
             at=command.paid_at,
         )
         if outcome.changed:
-            self._intents.save(intent)
+            await self._intents.save(intent)
         return PaymentConfirmed(
             reference=intent.reference,
             party_id=intent.party_id,

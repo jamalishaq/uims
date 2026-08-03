@@ -21,7 +21,7 @@ class AdmissionCycleRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, cycle: AdmissionCycle) -> None:
+    async def add(self, cycle: AdmissionCycle) -> None:
         """Open a cycle for a program and session.
 
         Raises:
@@ -29,7 +29,7 @@ class AdmissionCycleRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, cycle: AdmissionCycle) -> None:
+    async def save(self, cycle: AdmissionCycle) -> None:
         """Persist a claimed place, or any other change to a cycle already opened.
 
         Raises:
@@ -37,7 +37,7 @@ class AdmissionCycleRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, program_id: str, session_id: str) -> AdmissionCycle | None:
+    async def get(self, program_id: str, session_id: str) -> AdmissionCycle | None:
         """Return the cycle for the program that session, or ``None``.
 
         ``None`` means nobody opened one, which is not the same as a cycle with a quota

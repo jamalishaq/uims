@@ -11,16 +11,16 @@ class InMemoryLecturerRepository(LecturerRepositoryPort):
     def __init__(self) -> None:
         self._store = InMemoryStore[Lecturer]("lecturer", lambda lecturer: lecturer.lecturer_id)
 
-    def add(self, lecturer: Lecturer) -> None:
+    async def add(self, lecturer: Lecturer) -> None:
         self._store.add(lecturer)
 
-    def save(self, lecturer: Lecturer) -> None:
+    async def save(self, lecturer: Lecturer) -> None:
         self._store.save(lecturer)
 
-    def get(self, lecturer_id: str) -> Lecturer | None:
+    async def get(self, lecturer_id: str) -> Lecturer | None:
         return self._store.get(lecturer_id)
 
-    def list_for_department(self, department_id: str) -> tuple[Lecturer, ...]:
+    async def list_for_department(self, department_id: str) -> tuple[Lecturer, ...]:
         return tuple(
             lecturer for lecturer in self._store.all() if lecturer.department_id == department_id
         )

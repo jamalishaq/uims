@@ -44,5 +44,7 @@ class InMemoryDepartmentCodeAdapter(DepartmentCodePort):
             entry_year=EntryYear(entry_year),
         )
 
-    def format_inputs_for(self, program_id: str, session_id: str) -> MatricFormatInputs | None:
+    async def format_inputs_for(
+        self, program_id: str, session_id: str
+    ) -> MatricFormatInputs | None:
         return self._placements.get((program_id, session_id))

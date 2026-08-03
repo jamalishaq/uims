@@ -25,15 +25,15 @@ class InMemoryAccountRepository(AccountRepositoryPort):
         self._store = InMemoryStore[Account]("account", lambda account: account.party_id)
         self._aliases: dict[str, str] = {}
 
-    def add(self, account: Account) -> None:
+    async def add(self, account: Account) -> None:
         self._store.add(account)
         self._index(account)
 
-    def save(self, account: Account) -> None:
+    async def save(self, account: Account) -> None:
         self._store.save(account)
         self._index(account)
 
-    def get(self, party_id: str) -> Account | None:
+    async def get(self, party_id: str) -> Account | None:
         """Resolve the id directly, then through the alias index."""
         direct = self._store.get(party_id)
         if direct is not None:
@@ -41,7 +41,7 @@ class InMemoryAccountRepository(AccountRepositoryPort):
         aliased = self._aliases.get(party_id)
         return self._store.get(aliased) if aliased is not None else None
 
-    def all_active(self) -> tuple[Account, ...]:
+    async def all_active(self) -> tuple[Account, ...]:
         """Every account held, in the order opened. Nothing closes one in the MVP."""
         return self._store.all()
 

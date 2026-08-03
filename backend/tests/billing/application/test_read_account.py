@@ -21,19 +21,19 @@ AUGUST = datetime(2026, 8, 1, 9, 30)
 
 
 @pytest.fixture
-def a_part_paid_account(accounts: AccountRepositoryPort) -> Account:
+async def a_part_paid_account(accounts: AccountRepositoryPort) -> Account:
     account = Account.open(APPLICANT_ID, PROGRAM_ID)
     account.raise_acceptance_fee(SESSION_2026, Money("20000"))
     account.raise_session_fee(SESSION_2026, Money("100000"))
     account.apply_payment(gateway_ref="ref-1", amount=Money("90000"), received_at=AUGUST)
-    accounts.add(account)
+    await accounts.add(account)
     return account
 
 
-def test_states_what_was_charged_what_was_paid_and_what_is_left(
+async def test_states_what_was_charged_what_was_paid_and_what_is_left(
     read_account: ReadAccount, a_part_paid_account: Account
 ) -> None:
-    statement = read_account.execute(APPLICANT_ID)
+    statement = await read_account.execute(APPLICANT_ID)
 
     assert statement.total_charged == Money("120000")
     assert statement.total_paid == Money("90000")
@@ -42,11 +42,11 @@ def test_states_what_was_charged_what_was_paid_and_what_is_left(
     assert statement.acceptance_fee_settled
 
 
-def test_gives_the_clearance_adapter_the_session_fee_and_how_much_of_it_is_met(
+async def test_gives_the_clearance_adapter_the_session_fee_and_how_much_of_it_is_met(
     read_account: ReadAccount, a_part_paid_account: Account
 ) -> None:
     """The two figures 70% and 100% will be computed from — over there, in the adapter."""
-    statement = read_account.execute(APPLICANT_ID)
+    statement = await read_account.execute(APPLICANT_ID)
 
     session_fee = statement.charge_for(ChargeKind.SESSION, SESSION_2026)
     assert session_fee is not None
@@ -54,30 +54,30 @@ def test_gives_the_clearance_adapter_the_session_fee_and_how_much_of_it_is_met(
     assert session_fee.allocated == Money("70000")
 
 
-def test_says_nothing_about_whether_anybody_is_cleared(
+async def test_says_nothing_about_whether_anybody_is_cleared(
     read_account: ReadAccount, a_part_paid_account: Account
 ) -> None:
     """No percentage, no threshold, no verdict: that rule lives behind
     ``FinancialClearancePort`` and nowhere else."""
-    statement = read_account.execute(APPLICANT_ID)
+    statement = await read_account.execute(APPLICANT_ID)
     fields = set(vars(statement))
     assert not {field for field in fields if "clear" in field or "percent" in field}
 
 
-def test_the_statement_cannot_be_written_through(
+async def test_the_statement_cannot_be_written_through(
     read_account: ReadAccount, a_part_paid_account: Account
 ) -> None:
     """A DTO and not the aggregate: no ``apply_payment`` came with it."""
-    statement = read_account.execute(APPLICANT_ID)
+    statement = await read_account.execute(APPLICANT_ID)
     assert not hasattr(statement, "apply_payment")
     assert not hasattr(statement, "raise_charge")
 
 
-def test_finding_a_party_with_no_ledger_answers_none(read_account: ReadAccount) -> None:
+async def test_finding_a_party_with_no_ledger_answers_none(read_account: ReadAccount) -> None:
     """The form a port adapter wants: a clearance check about somebody unknown has an answer."""
-    assert read_account.find("app-9999") is None
+    assert await read_account.find("app-9999") is None
 
 
-def test_reading_a_party_with_no_ledger_is_an_error(read_account: ReadAccount) -> None:
+async def test_reading_a_party_with_no_ledger_is_an_error(read_account: ReadAccount) -> None:
     with pytest.raises(AccountNotFoundError):
-        read_account.execute("app-9999")
+        await read_account.execute("app-9999")

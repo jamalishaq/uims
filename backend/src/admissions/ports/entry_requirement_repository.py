@@ -18,7 +18,7 @@ class ProgramEntryRequirementRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, requirement: ProgramEntryRequirement) -> None:
+    async def add(self, requirement: ProgramEntryRequirement) -> None:
         """Publish a requirement for a program and session.
 
         Raises:
@@ -26,7 +26,7 @@ class ProgramEntryRequirementRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, requirement: ProgramEntryRequirement) -> None:
+    async def save(self, requirement: ProgramEntryRequirement) -> None:
         """Persist a change to a requirement already published.
 
         Raises:
@@ -34,7 +34,7 @@ class ProgramEntryRequirementRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, program_id: str, session_id: str) -> ProgramEntryRequirement | None:
+    async def get(self, program_id: str, session_id: str) -> ProgramEntryRequirement | None:
         """Return the requirement in force for the program that session, or ``None``.
 
         ``None`` means nobody has published one, which is not the same as a requirement

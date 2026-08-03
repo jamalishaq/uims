@@ -24,7 +24,7 @@ class AccountRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, account: Account) -> None:
+    async def add(self, account: Account) -> None:
         """Store an account for a party who did not have one.
 
         Raises:
@@ -32,7 +32,7 @@ class AccountRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, account: Account) -> None:
+    async def save(self, account: Account) -> None:
         """Persist changes to an account that is already stored.
 
         Raises:
@@ -40,7 +40,7 @@ class AccountRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, party_id: str) -> Account | None:
+    async def get(self, party_id: str) -> Account | None:
         """Return the party's account, or ``None`` if they have never been charged.
 
         ``None`` is an answer and not a failure: it is the answer for every applicant who has
@@ -48,7 +48,7 @@ class AccountRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def all_active(self) -> tuple[Account, ...]:
+    async def all_active(self) -> tuple[Account, ...]:
         """Every account a session's fees should be applied to, in the order opened.
 
         "Active" is the word CLAUDE.md section 3 uses — "batch-apply ``FeeSchedule`` to all

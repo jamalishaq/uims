@@ -49,55 +49,55 @@ def a_session(session_id: str = SESSION_ID, year: int = 2026) -> Session:
 
 
 @pytest.fixture
-def a_cohort(accounts: AccountRepositoryPort) -> AccountRepositoryPort:
-    accounts.add(Account.open("app-0001", CSC_PROGRAM_ID))
-    accounts.add(Account.open("app-0002", LAW_PROGRAM_ID))
+async def a_cohort(accounts: AccountRepositoryPort) -> AccountRepositoryPort:
+    await accounts.add(Account.open("app-0001", CSC_PROGRAM_ID))
+    await accounts.add(Account.open("app-0002", LAW_PROGRAM_ID))
     return accounts
 
 
-def test_opening_a_session_charges_every_priced_account(
+async def test_opening_a_session_charges_every_priced_account(
     wired_bus: InMemoryEventBus,
     a_cohort: AccountRepositoryPort,
     published_schedule: FeeSchedule,
 ) -> None:
-    wired_bus.publish(a_session().open())
+    await wired_bus.publish(a_session().open())
 
-    charged = a_cohort.get("app-0001")
+    charged = await a_cohort.get("app-0001")
     assert charged is not None
     session_fee = charged.charge_for(ChargeKind.SESSION, SESSION_ID)
     assert session_fee is not None
     assert session_fee.amount == Money("100000")
 
 
-def test_an_account_the_schedule_does_not_price_is_left_alone(
+async def test_an_account_the_schedule_does_not_price_is_left_alone(
     wired_bus: InMemoryEventBus,
     a_cohort: AccountRepositoryPort,
     published_schedule: FeeSchedule,
 ) -> None:
-    wired_bus.publish(a_session().open())
+    await wired_bus.publish(a_session().open())
 
-    skipped = a_cohort.get("app-0002")
+    skipped = await a_cohort.get("app-0002")
     assert skipped is not None
     assert skipped.charges == ()
 
 
-def test_a_replayed_session_charges_nobody_twice(
+async def test_a_replayed_session_charges_nobody_twice(
     wired_bus: InMemoryEventBus,
     a_cohort: AccountRepositoryPort,
     published_schedule: FeeSchedule,
 ) -> None:
     """At-least-once delivery is normal; a second session fee is the failure that would cause."""
     event = a_session().open()
-    wired_bus.publish(event)
-    wired_bus.publish(event)
+    await wired_bus.publish(event)
+    await wired_bus.publish(event)
 
-    charged = a_cohort.get("app-0001")
+    charged = await a_cohort.get("app-0001")
     assert charged is not None
     assert len(charged.charges_for_session(SESSION_ID)) == 1
     assert charged.outstanding == Money("100000")
 
 
-def test_a_session_that_cannot_open_charges_nobody(
+async def test_a_session_that_cannot_open_charges_nobody(
     wired_bus: InMemoryEventBus,
     a_cohort: AccountRepositoryPort,
     published_schedule: FeeSchedule,
@@ -111,7 +111,7 @@ def test_a_session_that_cannot_open_charges_nobody(
         session.open()
 
     assert wired_bus.published == ()
-    charged = a_cohort.get("app-0001")
+    charged = await a_cohort.get("app-0001")
     assert charged is not None
     assert charged.charges == ()
 
@@ -125,14 +125,14 @@ def test_billing_subscribes_to_the_session_and_to_nothing_else(
     assert wired_bus.subscribers_for("GradeSubmitted") == ()
 
 
-def test_next_year_is_another_charge_on_the_same_ledger(
+async def test_next_year_is_another_charge_on_the_same_ledger(
     wired_bus: InMemoryEventBus,
     a_cohort: AccountRepositoryPort,
     published_schedule: FeeSchedule,
     schedules: InMemoryFeeScheduleRepository,
 ) -> None:
     """One continuous ledger: a second session opening adds an entry, not an account."""
-    schedules.add(
+    await schedules.add(
         FeeSchedule.for_session(
             "sess-2027",
             acceptance_fee=Money("20000"),
@@ -141,10 +141,10 @@ def test_next_year_is_another_charge_on_the_same_ledger(
         )
     )
 
-    wired_bus.publish(a_session().open())
-    wired_bus.publish(a_session("sess-2027", 2027).open())
+    await wired_bus.publish(a_session().open())
+    await wired_bus.publish(a_session("sess-2027", 2027).open())
 
-    charged = a_cohort.get("app-0001")
+    charged = await a_cohort.get("app-0001")
     assert charged is not None
     assert len(charged.charges) == 2
     assert charged.outstanding == Money("200000")

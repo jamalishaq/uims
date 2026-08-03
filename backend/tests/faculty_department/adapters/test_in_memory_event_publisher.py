@@ -22,27 +22,27 @@ class TestPublishing:
     def test_a_new_publisher_has_published_nothing(self) -> None:
         assert InMemoryEventPublisher().published == ()
 
-    def test_events_are_kept_in_publication_order(self) -> None:
+    async def test_events_are_kept_in_publication_order(self) -> None:
         publisher = InMemoryEventPublisher()
 
-        publisher.publish(A_SESSION_OPENING)
-        publisher.publish(A_GRADE)
-        publisher.publish(ANOTHER_GRADE)
+        await publisher.publish(A_SESSION_OPENING)
+        await publisher.publish(A_GRADE)
+        await publisher.publish(ANOTHER_GRADE)
 
         assert publisher.published == (A_SESSION_OPENING, A_GRADE, ANOTHER_GRADE)
 
-    def test_the_same_event_published_twice_is_recorded_twice(self) -> None:
+    async def test_the_same_event_published_twice_is_recorded_twice(self) -> None:
         """The publisher announces; it does not deduplicate. That is a consumer's concern."""
         publisher = InMemoryEventPublisher()
 
-        publisher.publish(A_GRADE)
-        publisher.publish(A_GRADE)
+        await publisher.publish(A_GRADE)
+        await publisher.publish(A_GRADE)
 
         assert publisher.published == (A_GRADE, A_GRADE)
 
-    def test_clear_forgets_what_was_published(self) -> None:
+    async def test_clear_forgets_what_was_published(self) -> None:
         publisher = InMemoryEventPublisher()
-        publisher.publish(A_GRADE)
+        await publisher.publish(A_GRADE)
 
         publisher.clear()
 
@@ -50,14 +50,14 @@ class TestPublishing:
 
 
 class TestPublishedIsACopy:
-    def test_callers_cannot_rewrite_history(self) -> None:
+    async def test_callers_cannot_rewrite_history(self) -> None:
         publisher = InMemoryEventPublisher()
-        publisher.publish(A_GRADE)
+        await publisher.publish(A_GRADE)
 
         published = publisher.published
         assert isinstance(published, tuple)
 
-        publisher.publish(ANOTHER_GRADE)
+        await publisher.publish(ANOTHER_GRADE)
 
         assert published == (A_GRADE,)
         assert publisher.published == (A_GRADE, ANOTHER_GRADE)

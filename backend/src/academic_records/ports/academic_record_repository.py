@@ -20,7 +20,7 @@ class AcademicRecordRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, record: AcademicRecord) -> None:
+    async def add(self, record: AcademicRecord) -> None:
         """Store a record for a student who did not have one.
 
         Raises:
@@ -28,7 +28,7 @@ class AcademicRecordRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, record: AcademicRecord) -> None:
+    async def save(self, record: AcademicRecord) -> None:
         """Persist changes to a record that is already stored.
 
         Raises:
@@ -36,7 +36,7 @@ class AcademicRecordRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, student_id: str) -> AcademicRecord | None:
+    async def get(self, student_id: str) -> AcademicRecord | None:
         """Return the student's record, or ``None`` if nobody has graded them yet.
 
         ``None`` is an answer and not a failure, and it is the answer for every student

@@ -9,7 +9,7 @@ class ProgramRepositoryPort(ABC):
     """Persistence for the ``Program`` aggregate."""
 
     @abstractmethod
-    def add(self, program: Program) -> None:
+    async def add(self, program: Program) -> None:
         """Store a new program.
 
         Raises:
@@ -17,7 +17,7 @@ class ProgramRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, program: Program) -> None:
+    async def save(self, program: Program) -> None:
         """Persist changes to a program that is already stored.
 
         Raises:
@@ -25,9 +25,9 @@ class ProgramRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, program_id: str) -> Program | None:
+    async def get(self, program_id: str) -> Program | None:
         """Return the program, or ``None`` if no such id is held."""
 
     @abstractmethod
-    def list_for_department(self, department_id: str) -> tuple[Program, ...]:
+    async def list_for_department(self, department_id: str) -> tuple[Program, ...]:
         """Every program offered by one department, in the order it was added."""

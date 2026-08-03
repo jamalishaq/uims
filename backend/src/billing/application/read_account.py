@@ -60,25 +60,25 @@ class ReadAccount:
     def __init__(self, accounts: AccountRepositoryPort) -> None:
         self._accounts = accounts
 
-    def execute(self, party_id: str) -> AccountStatement:
+    async def execute(self, party_id: str) -> AccountStatement:
         """Return the party's statement.
 
         Raises:
             AccountNotFoundError: no ledger exists for that party.
         """
-        statement = self.find(party_id)
+        statement = await self.find(party_id)
         if statement is None:
             raise AccountNotFoundError(f"no billing account is stored for party {party_id!r}")
         return statement
 
-    def find(self, party_id: str) -> AccountStatement | None:
+    async def find(self, party_id: str) -> AccountStatement | None:
         """Return the party's statement, or ``None`` if they have never been charged.
 
         The form a *port adapter* wants, and the reason both exist: a clearance check asked
         about somebody with no ledger has an answer, and making it travel as an exception
         would put a normal question on an error path.
         """
-        account = self._accounts.get(party_id)
+        account = await self._accounts.get(party_id)
         if account is None:
             return None
 

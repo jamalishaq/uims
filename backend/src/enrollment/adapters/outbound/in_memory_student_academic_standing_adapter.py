@@ -52,5 +52,5 @@ class InMemoryStudentAcademicStandingAdapter(StudentAcademicStandingPort):
             standing=standing,
         )
 
-    def standing_for(self, student_id: str) -> AcademicStanding | None:
+    async def standing_for(self, student_id: str) -> AcademicStanding | None:
         return self._standings.get(student_id)

@@ -31,11 +31,11 @@ class InMemoryAdmissionCycleRepository(AdmissionCycleRepositoryPort):
             lambda cycle: _key(cycle.program_id, cycle.session_id),
         )
 
-    def add(self, cycle: AdmissionCycle) -> None:
+    async def add(self, cycle: AdmissionCycle) -> None:
         self._store.add(cycle)
 
-    def save(self, cycle: AdmissionCycle) -> None:
+    async def save(self, cycle: AdmissionCycle) -> None:
         self._store.save(cycle)
 
-    def get(self, program_id: str, session_id: str) -> AdmissionCycle | None:
+    async def get(self, program_id: str, session_id: str) -> AdmissionCycle | None:
         return self._store.get(_key(program_id, session_id))

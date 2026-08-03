@@ -78,134 +78,134 @@ def repository_and_factory(request: pytest.FixtureRequest) -> tuple[Any, Callabl
 
 
 class TestSharedRepositoryContract:
-    def test_an_added_aggregate_comes_back(
+    async def test_an_added_aggregate_comes_back(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         repository, make = repository_and_factory
         aggregate = make("id-001")
 
-        repository.add(aggregate)
+        await repository.add(aggregate)
 
-        assert repository.get("id-001") is aggregate
+        assert await repository.get("id-001") is aggregate
 
-    def test_an_unknown_id_returns_none(
+    async def test_an_unknown_id_returns_none(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         """Absence is an answer, not a failure."""
         repository, _ = repository_and_factory
 
-        assert repository.get("id-nobody") is None
+        assert await repository.get("id-nobody") is None
 
-    def test_adding_a_second_aggregate_under_the_same_id_is_refused(
+    async def test_adding_a_second_aggregate_under_the_same_id_is_refused(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         repository, make = repository_and_factory
         first = make("id-001")
-        repository.add(first)
+        await repository.add(first)
 
         with pytest.raises(DuplicateAggregateError):
-            repository.add(make("id-001"))
+            await repository.add(make("id-001"))
 
-        assert repository.get("id-001") is first
+        assert await repository.get("id-001") is first
 
-    def test_save_replaces_a_stored_aggregate(
+    async def test_save_replaces_a_stored_aggregate(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         repository, make = repository_and_factory
-        repository.add(make("id-001"))
+        await repository.add(make("id-001"))
         replacement = make("id-001")
 
-        repository.save(replacement)
+        await repository.save(replacement)
 
-        assert repository.get("id-001") is replacement
+        assert await repository.get("id-001") is replacement
 
-    def test_save_on_an_id_that_was_never_added_is_refused(
+    async def test_save_on_an_id_that_was_never_added_is_refused(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         repository, make = repository_and_factory
 
         with pytest.raises(AggregateNotFoundError):
-            repository.save(make("id-001"))
+            await repository.save(make("id-001"))
 
-        assert repository.get("id-001") is None
+        assert await repository.get("id-001") is None
 
-    def test_aggregates_are_kept_apart(
+    async def test_aggregates_are_kept_apart(
         self, repository_and_factory: tuple[Any, Callable[[str], Any]]
     ) -> None:
         repository, make = repository_and_factory
         first, second = make("id-001"), make("id-002")
 
-        repository.add(first)
-        repository.add(second)
+        await repository.add(first)
+        await repository.add(second)
 
-        assert repository.get("id-001") is first
-        assert repository.get("id-002") is second
+        assert await repository.get("id-001") is first
+        assert await repository.get("id-002") is second
 
 
 class TestListAll:
-    def test_faculties_are_listed_in_insertion_order(self) -> None:
+    async def test_faculties_are_listed_in_insertion_order(self) -> None:
         repository = InMemoryFacultyRepository()
         first, second = a_faculty("fac-sci"), a_faculty("fac-arts")
-        repository.add(first)
-        repository.add(second)
+        await repository.add(first)
+        await repository.add(second)
 
-        assert repository.list_all() == (first, second)
+        assert await repository.list_all() == (first, second)
 
-    def test_sessions_are_listed_in_insertion_order(self) -> None:
+    async def test_sessions_are_listed_in_insertion_order(self) -> None:
         repository = InMemorySessionRepository()
         newer, older = a_session("sess-2027", 2027), a_session("sess-2026", 2026)
-        repository.add(newer)
-        repository.add(older)
+        await repository.add(newer)
+        await repository.add(older)
 
-        assert repository.list_all() == (newer, older)
+        assert await repository.list_all() == (newer, older)
 
-    def test_an_empty_repository_lists_nothing(self) -> None:
-        assert InMemoryFacultyRepository().list_all() == ()
+    async def test_an_empty_repository_lists_nothing(self) -> None:
+        assert await InMemoryFacultyRepository().list_all() == ()
 
 
 class TestFinders:
-    def test_departments_are_filtered_by_faculty(self) -> None:
+    async def test_departments_are_filtered_by_faculty(self) -> None:
         repository = InMemoryDepartmentRepository()
         computer_science = a_department("dept-csc", "fac-sci")
         physics = a_department("dept-phy", "fac-sci")
-        repository.add(computer_science)
-        repository.add(physics)
-        repository.add(a_department("dept-eng", "fac-arts"))
+        await repository.add(computer_science)
+        await repository.add(physics)
+        await repository.add(a_department("dept-eng", "fac-arts"))
 
-        assert repository.list_for_faculty("fac-sci") == (computer_science, physics)
+        assert await repository.list_for_faculty("fac-sci") == (computer_science, physics)
 
-    def test_programs_are_filtered_by_department(self) -> None:
+    async def test_programs_are_filtered_by_department(self) -> None:
         repository = InMemoryProgramRepository()
         computing = a_program("prog-csc-bsc", "dept-csc")
-        repository.add(computing)
-        repository.add(a_program("prog-phy-bsc", "dept-phy"))
+        await repository.add(computing)
+        await repository.add(a_program("prog-phy-bsc", "dept-phy"))
 
-        assert repository.list_for_department("dept-csc") == (computing,)
+        assert await repository.list_for_department("dept-csc") == (computing,)
 
-    def test_lecturers_are_filtered_by_department(self) -> None:
+    async def test_lecturers_are_filtered_by_department(self) -> None:
         repository = InMemoryLecturerRepository()
         okonkwo = a_lecturer("lec-001", "dept-csc")
-        repository.add(okonkwo)
-        repository.add(a_lecturer("lec-002", "dept-phy"))
+        await repository.add(okonkwo)
+        await repository.add(a_lecturer("lec-002", "dept-phy"))
 
-        assert repository.list_for_department("dept-csc") == (okonkwo,)
+        assert await repository.list_for_department("dept-csc") == (okonkwo,)
 
-    def test_a_department_with_no_members_lists_nothing(self) -> None:
+    async def test_a_department_with_no_members_lists_nothing(self) -> None:
         repository = InMemoryLecturerRepository()
-        repository.add(a_lecturer("lec-001", "dept-csc"))
+        await repository.add(a_lecturer("lec-001", "dept-csc"))
 
-        assert repository.list_for_department("dept-nobody") == ()
+        assert await repository.list_for_department("dept-nobody") == ()
 
 
 class TestAssignmentsTravelWithTheLecturer:
-    def test_a_stored_lecturer_keeps_the_courses_they_were_assigned(self) -> None:
+    async def test_a_stored_lecturer_keeps_the_courses_they_were_assigned(self) -> None:
         """Assignments are part of the aggregate, so the repository must carry them."""
         repository = InMemoryLecturerRepository()
         lecturer = a_lecturer()
         lecturer.assign_to_course("csc-101", "sess-2026")
-        repository.add(lecturer)
+        await repository.add(lecturer)
 
-        stored = repository.get(lecturer.lecturer_id)
+        stored = await repository.get(lecturer.lecturer_id)
 
         assert stored is not None
         assert stored.is_assigned_to("csc-101", "sess-2026")

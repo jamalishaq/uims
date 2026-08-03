@@ -107,10 +107,10 @@ def events() -> InMemoryEventPublisher:
 
 
 @pytest.fixture
-def published_schedule(schedules: InMemoryFeeScheduleRepository) -> FeeSchedule:
+async def published_schedule(schedules: InMemoryFeeScheduleRepository) -> FeeSchedule:
     """The 2026 schedule, already published. What most tests assume exists."""
     schedule = a_schedule()
-    schedules.add(schedule)
+    await schedules.add(schedule)
     return schedule
 
 

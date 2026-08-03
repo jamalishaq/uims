@@ -71,7 +71,7 @@ class StudentMatriculatedHandler:
         self._students = students
         self._new_student_id = new_student_id or (lambda: uuid4().hex)
 
-    def handle(self, message: StudentMatriculatedMessage) -> Student:
+    async def handle(self, message: StudentMatriculatedMessage) -> Student:
         """Register the student, or return the one this applicant already became.
 
         Redelivery is normal, not exceptional: a bus that guarantees at-least-once
@@ -83,7 +83,7 @@ class StudentMatriculatedHandler:
         ``applicant_id``: two deliveries handled at the same instant can both find
         nothing. It turns the ordinary case into a no-op; the constraint catches the race.
         """
-        existing = self._students.find_by_applicant(message.applicant_id)
+        existing = await self._students.find_by_applicant(message.applicant_id)
         if existing is not None:
             return existing
 
@@ -98,4 +98,4 @@ class StudentMatriculatedHandler:
             entry_level=message.entry_level,
             applicant_id=message.applicant_id,
         )
-        return self._register_new_student.execute(command)
+        return await self._register_new_student.execute(command)

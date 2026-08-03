@@ -49,7 +49,7 @@ class SubmitGrade:
         self._sessions = sessions
         self._events = events
 
-    def execute(self, command: SubmitGradeCommand) -> GradeSubmitted:
+    async def execute(self, command: SubmitGradeCommand) -> GradeSubmitted:
         """Publish and return the ``GradeSubmitted`` fact.
 
         Raises:
@@ -59,11 +59,11 @@ class SubmitGrade:
                 identifier is invalid. Domain errors pass through untranslated — the
                 domain already says exactly what went wrong.
         """
-        lecturer = self._lecturers.get(command.lecturer_id)
+        lecturer = await self._lecturers.get(command.lecturer_id)
         if lecturer is None:
             raise LecturerNotFoundError(f"no lecturer stored with id {command.lecturer_id!r}")
 
-        session = self._sessions.get(command.session_id)
+        session = await self._sessions.get(command.session_id)
         if session is None:
             raise SessionNotFoundError(f"no session stored with id {command.session_id!r}")
 
@@ -76,5 +76,5 @@ class SubmitGrade:
             score=command.score,
         )
 
-        self._events.publish(event)
+        await self._events.publish(event)
         return event

@@ -31,13 +31,13 @@ class ReadPrerequisiteChain:
     def __init__(self, courses: CourseRepositoryPort) -> None:
         self._courses = courses
 
-    def execute(self, command: ReadPrerequisiteChainCommand) -> tuple[str, ...]:
+    async def execute(self, command: ReadPrerequisiteChainCommand) -> tuple[str, ...]:
         """Return the required course ids, nearest first, each one once.
 
         Raises:
             CourseNotFoundError: no such course is stored.
         """
-        if self._courses.get(command.course_id) is None:
+        if await self._courses.get(command.course_id) is None:
             raise CourseNotFoundError(f"no course stored with id {command.course_id!r}")
 
-        return PrerequisiteGraph(self._courses.get).chain_for(command.course_id)
+        return await PrerequisiteGraph(self._courses.get).chain_for(command.course_id)

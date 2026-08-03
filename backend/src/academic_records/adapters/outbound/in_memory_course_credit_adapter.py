@@ -38,5 +38,5 @@ class InMemoryCourseCreditAdapter(CourseCreditPort):
         """
         self._courses[course_id] = CourseCredits(course_id=course_id, credit_units=credit_units)
 
-    def credits_for(self, course_id: str) -> CourseCredits | None:
+    async def credits_for(self, course_id: str) -> CourseCredits | None:
         return self._courses.get(course_id)

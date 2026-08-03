@@ -42,7 +42,7 @@ class LinkStudentAccount:
     def __init__(self, accounts: AccountRepositoryPort) -> None:
         self._accounts = accounts
 
-    def execute(self, command: LinkStudentAccountCommand) -> StudentAccountLinked:
+    async def execute(self, command: LinkStudentAccountCommand) -> StudentAccountLinked:
         """Link the account, or report that it was already linked to this id.
 
         Raises:
@@ -51,7 +51,7 @@ class LinkStudentAccount:
                 number. One ledger for two people would leave nobody able to say whose money
                 was whose.
         """
-        account = self._accounts.get(command.party_id)
+        account = await self._accounts.get(command.party_id)
         if account is None:
             raise AccountNotFoundError(
                 f"no billing account is stored for party {command.party_id!r}, so it cannot "
@@ -60,7 +60,7 @@ class LinkStudentAccount:
 
         linked_now = account.link_student_id(command.student_id)
         if linked_now:
-            self._accounts.save(account)
+            await self._accounts.save(account)
 
         return StudentAccountLinked(
             party_id=account.party_id,

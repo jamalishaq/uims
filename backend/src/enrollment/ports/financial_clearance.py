@@ -32,7 +32,7 @@ class FinancialClearancePort(ABC):
     """Asks Billing whether a student may register in a given term."""
 
     @abstractmethod
-    def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
+    async def is_cleared_for_registration(self, student_id: str, term: Term) -> bool:
         """Whether the student has settled enough to register for this term.
 
         A bare boolean rather than an outcome type, because there is nothing to carry: the

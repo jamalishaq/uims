@@ -15,7 +15,7 @@ class AlternativeProgramPolicyRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, policy: AlternativeProgramPolicy) -> None:
+    async def add(self, policy: AlternativeProgramPolicy) -> None:
         """Publish a fallback chain for a program and session.
 
         Raises:
@@ -23,7 +23,7 @@ class AlternativeProgramPolicyRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, policy: AlternativeProgramPolicy) -> None:
+    async def save(self, policy: AlternativeProgramPolicy) -> None:
         """Persist a change to a policy already published.
 
         Raises:
@@ -31,7 +31,7 @@ class AlternativeProgramPolicyRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, program_id: str, session_id: str) -> AlternativeProgramPolicy | None:
+    async def get(self, program_id: str, session_id: str) -> AlternativeProgramPolicy | None:
         """Return the fallback chain for the program that session, or ``None``.
 
         ``None`` means nobody published one. It is deliberately indistinguishable in

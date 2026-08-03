@@ -82,8 +82,8 @@ class BillingSessionFeeLedger:
     def __init__(self, accounts: ReadAccount) -> None:
         self._accounts = accounts
 
-    def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
-        statement = self._accounts.find(party_id)
+    async def session_fee_for(self, party_id: str, session_id: str) -> SessionFeePosition | None:
+        statement = await self._accounts.find(party_id)
         if statement is None:
             return None
         charge = statement.charge_for(ChargeKind.SESSION, session_id)
@@ -98,9 +98,9 @@ def accounts() -> InMemoryAccountRepository:
 
 
 @pytest.fixture
-def schedules() -> InMemoryFeeScheduleRepository:
+async def schedules() -> InMemoryFeeScheduleRepository:
     schedules = InMemoryFeeScheduleRepository()
-    schedules.add(
+    await schedules.add(
         FeeSchedule.for_session(
             SESSION_ID,
             acceptance_fee=ACCEPTANCE_FEE,
@@ -135,18 +135,18 @@ def clearance_adapter(accounts: InMemoryAccountRepository) -> BillingFinancialCl
 
 
 @pytest.fixture
-def billed_student(
+async def billed_student(
     accounts: InMemoryAccountRepository,
     schedules: InMemoryFeeScheduleRepository,
     events: InMemoryEventPublisher,
 ) -> str:
     """An accepted offer, a session opened, and a ledger with three charges on it."""
-    OpenAccountForOffer(accounts, schedules, events).execute(
+    await OpenAccountForOffer(accounts, schedules, events).execute(
         OpenAccountForOfferCommand(
             applicant_id=APPLICANT_ID, program_id=CSC_PROGRAM_ID, session_id=SESSION_ID
         )
     )
-    ApplySessionFees(accounts, schedules, events).execute(SESSION_ID)
+    await ApplySessionFees(accounts, schedules, events).execute(SESSION_ID)
     return APPLICANT_ID
 
 
@@ -159,14 +159,14 @@ def a_payment(amount: Decimal, reference: str = "psk-0001") -> RecordPaymentComm
     )
 
 
-def settle_admission_fees_and_pay(pay: RecordPayment, towards_session_fee: Decimal) -> None:
+async def settle_admission_fees_and_pay(pay: RecordPayment, towards_session_fee: Decimal) -> None:
     """Pay off the acceptance and matriculation charges, then put money on the session fee.
 
     Billing allocates gating-charge-first and then in the order raised, so a single payment of
     the admission fees plus ``towards_session_fee`` lands exactly ``towards_session_fee`` on the
     session charge. Two payments would do as well; one keeps the arithmetic in view.
     """
-    pay.execute(a_payment(ADMISSION_FEES.amount + towards_session_fee))
+    await pay.execute(a_payment(ADMISSION_FEES.amount + towards_session_fee))
 
 
 class TestTheBoundariesHoldAgainstARealLedger:
@@ -181,7 +181,7 @@ class TestTheBoundariesHoldAgainstARealLedger:
         ],
         ids=["69%", "70%", "71%"],
     )
-    def test_first_semester_at_the_seventy_percent_boundary(
+    async def test_first_semester_at_the_seventy_percent_boundary(
         self,
         billed_student: str,
         pay: RecordPayment,
@@ -189,8 +189,8 @@ class TestTheBoundariesHoldAgainstARealLedger:
         towards_session_fee: Decimal,
         cleared: bool,
     ) -> None:
-        settle_admission_fees_and_pay(pay, towards_session_fee)
-        assert clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is cleared
+        await settle_admission_fees_and_pay(pay, towards_session_fee)
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is cleared
 
     @pytest.mark.parametrize(
         ("towards_session_fee", "cleared"),
@@ -200,7 +200,7 @@ class TestTheBoundariesHoldAgainstARealLedger:
         ],
         ids=["99%", "100%"],
     )
-    def test_second_semester_at_the_hundred_percent_boundary(
+    async def test_second_semester_at_the_hundred_percent_boundary(
         self,
         billed_student: str,
         pay: RecordPayment,
@@ -208,24 +208,26 @@ class TestTheBoundariesHoldAgainstARealLedger:
         towards_session_fee: Decimal,
         cleared: bool,
     ) -> None:
-        settle_admission_fees_and_pay(pay, towards_session_fee)
-        assert clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is cleared
+        await settle_admission_fees_and_pay(pay, towards_session_fee)
+        assert (
+            await clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is cleared
+        )
 
-    def test_the_deferred_thirty_percent_is_what_separates_the_halves(
+    async def test_the_deferred_thirty_percent_is_what_separates_the_halves(
         self,
         billed_student: str,
         pay: RecordPayment,
         clearance_adapter: BillingFinancialClearanceAdapter,
     ) -> None:
         """The rule read as a bursar states it: 70% registers you once, then settle up."""
-        settle_admission_fees_and_pay(pay, Decimal("70000"))
-        assert clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True
-        assert clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is False
+        await settle_admission_fees_and_pay(pay, Decimal("70000"))
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is False
 
-        pay.execute(a_payment(Decimal("30000"), reference="psk-0002"))
-        assert clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is True
+        await pay.execute(a_payment(Decimal("30000"), reference="psk-0002"))
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, SECOND) is True
 
-    def test_admission_fees_are_not_credited_to_the_session_fee(
+    async def test_admission_fees_are_not_credited_to_the_session_fee(
         self,
         billed_student: str,
         pay: RecordPayment,
@@ -237,17 +239,17 @@ class TestTheBoundariesHoldAgainstARealLedger:
         fees and leaves nothing on the session fee. A rule computed from a total paid rather
         than from what was allocated to the session charge would clear this student.
         """
-        pay.execute(a_payment(ADMISSION_FEES.amount))
-        assert clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is False
+        await pay.execute(a_payment(ADMISSION_FEES.amount))
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is False
 
 
 class TestAbsenceRefuses:
-    def test_a_party_billing_has_never_heard_of_is_refused(
+    async def test_a_party_billing_has_never_heard_of_is_refused(
         self, clearance_adapter: BillingFinancialClearanceAdapter
     ) -> None:
-        assert clearance_adapter.is_cleared_for_registration("stu-nobody", FIRST) is False
+        assert await clearance_adapter.is_cleared_for_registration("stu-nobody", FIRST) is False
 
-    def test_an_account_the_session_fee_never_reached_is_refused(
+    async def test_an_account_the_session_fee_never_reached_is_refused(
         self,
         accounts: InMemoryAccountRepository,
         schedules: InMemoryFeeScheduleRepository,
@@ -261,46 +263,49 @@ class TestAbsenceRefuses:
         schedule should not stop a session opening. What it leaves is an account with no
         session charge, and the answer to a clearance question about it is no.
         """
-        OpenAccountForOffer(accounts, schedules, events).execute(
+        await OpenAccountForOffer(accounts, schedules, events).execute(
             OpenAccountForOfferCommand(
                 applicant_id=APPLICANT_ID, program_id=LAW_PROGRAM_ID, session_id=SESSION_ID
             )
         )
-        applied = ApplySessionFees(accounts, schedules, events).execute(SESSION_ID)
+        applied = await ApplySessionFees(accounts, schedules, events).execute(SESSION_ID)
         assert applied.unpriced == (APPLICANT_ID,)
 
-        pay.execute(a_payment(ADMISSION_FEES.amount))
-        assert clearance_adapter.is_cleared_for_registration(APPLICANT_ID, FIRST) is False
+        await pay.execute(a_payment(ADMISSION_FEES.amount))
+        assert await clearance_adapter.is_cleared_for_registration(APPLICANT_ID, FIRST) is False
 
-    def test_a_fee_settled_for_another_session_does_not_clear_this_one(
+    async def test_a_fee_settled_for_another_session_does_not_clear_this_one(
         self,
         billed_student: str,
         pay: RecordPayment,
         clearance_adapter: BillingFinancialClearanceAdapter,
     ) -> None:
-        settle_admission_fees_and_pay(pay, CSC_SESSION_FEE.amount)
+        await settle_admission_fees_and_pay(pay, CSC_SESSION_FEE.amount)
         next_session = Term(
             session_id="sess-2027", semester_id="sem-2027-1", ordinal=SemesterOrdinal.FIRST
         )
-        assert clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True
-        assert clearance_adapter.is_cleared_for_registration(billed_student, next_session) is False
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True
+        assert (
+            await clearance_adapter.is_cleared_for_registration(billed_student, next_session)
+            is False
+        )
 
 
 class TestClearanceSurvivesTheMatricNumberLink:
     """One continuous ledger, two ids. Enrollment only ever knows the second."""
 
-    def test_the_matric_number_reaches_the_applicants_ledger(
+    async def test_the_matric_number_reaches_the_applicants_ledger(
         self,
         billed_student: str,
         accounts: InMemoryAccountRepository,
         pay: RecordPayment,
         clearance_adapter: BillingFinancialClearanceAdapter,
     ) -> None:
-        settle_admission_fees_and_pay(pay, Decimal("70000"))
-        assert clearance_adapter.is_cleared_for_registration(MATRIC_NUMBER, FIRST) is False
+        await settle_admission_fees_and_pay(pay, Decimal("70000"))
+        assert await clearance_adapter.is_cleared_for_registration(MATRIC_NUMBER, FIRST) is False
 
-        LinkStudentAccount(accounts).execute(
+        await LinkStudentAccount(accounts).execute(
             LinkStudentAccountCommand(party_id=billed_student, student_id=MATRIC_NUMBER)
         )
-        assert clearance_adapter.is_cleared_for_registration(MATRIC_NUMBER, FIRST) is True
-        assert clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True
+        assert await clearance_adapter.is_cleared_for_registration(MATRIC_NUMBER, FIRST) is True
+        assert await clearance_adapter.is_cleared_for_registration(billed_student, FIRST) is True

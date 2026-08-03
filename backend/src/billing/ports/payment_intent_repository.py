@@ -30,7 +30,7 @@ class PaymentIntentRepositoryPort(ABC):
     """
 
     @abstractmethod
-    def add(self, intent: PaymentIntent) -> None:
+    async def add(self, intent: PaymentIntent) -> None:
         """Store an intent under a reference nothing has used yet.
 
         Raises:
@@ -40,7 +40,7 @@ class PaymentIntentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def save(self, intent: PaymentIntent) -> None:
+    async def save(self, intent: PaymentIntent) -> None:
         """Persist a transition on an intent that is already stored.
 
         Raises:
@@ -48,7 +48,7 @@ class PaymentIntentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def get(self, reference: str) -> PaymentIntent | None:
+    async def get(self, reference: str) -> PaymentIntent | None:
         """Return the intent opened under ``reference``, or ``None`` if there is none.
 
         ``None`` is an answer rather than a failure everywhere else in this system; here it is
@@ -58,7 +58,7 @@ class PaymentIntentRepositoryPort(ABC):
         """
 
     @abstractmethod
-    def all_initiated(self) -> tuple[PaymentIntent, ...]:
+    async def all_initiated(self) -> tuple[PaymentIntent, ...]:
         """Every intent the gateway has said nothing about yet, in the order opened.
 
         Not "every stale intent": staleness is a judgement about a TTL and an instant, and

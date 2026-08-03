@@ -83,7 +83,7 @@ class OpenAccountForOffer:
         self._schedules = schedules
         self._events = events
 
-    def execute(self, command: OpenAccountForOfferCommand) -> AccountOpened:
+    async def execute(self, command: OpenAccountForOfferCommand) -> AccountOpened:
         """Open the account if it is new, and make sure both admission charges stand.
 
         Raises:
@@ -92,14 +92,14 @@ class OpenAccountForOffer:
             BillingError: an identifier or the level is invalid. Domain errors pass through
                 untranslated — the domain already says exactly what went wrong.
         """
-        schedule = self._schedules.get(command.session_id)
+        schedule = await self._schedules.get(command.session_id)
         if schedule is None:
             raise FeeScheduleNotPublishedError(
                 f"no fee schedule is published for session {command.session_id!r}, so the "
                 f"offer accepted by applicant {command.applicant_id!r} cannot be charged"
             )
 
-        account = self._accounts.get(command.applicant_id)
+        account = await self._accounts.get(command.applicant_id)
         was_already_open = account is not None
         if account is None:
             account = Account.open(
@@ -114,12 +114,12 @@ class OpenAccountForOffer:
         )
 
         if was_already_open:
-            self._accounts.save(account)
+            await self._accounts.save(account)
         else:
-            self._accounts.add(account)
+            await self._accounts.add(account)
 
         for event in (*acceptance.events, *matriculation.events):
-            self._events.publish(event)
+            await self._events.publish(event)
 
         return AccountOpened(
             party_id=account.party_id,
