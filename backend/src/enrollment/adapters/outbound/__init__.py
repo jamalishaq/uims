@@ -4,15 +4,27 @@ In-memory implementations of the ports, good enough to run the whole context and
 suite without a database. Phase 6 adds Postgres adapters alongside the two repositories;
 nothing above this package should have to change when it does.
 
-The other three are not persistence. ``InMemoryCourseInfoAdapter`` and
-``InMemoryStudentAcademicStandingAdapter`` are anti-corruption layers, standing where Course
-Catalog and Academic Records will be reached over a boundary that is not a Python import;
-both are fed their answers rather than reading those contexts, which is the dependency rule
-showing up as a constructor. ``StubFinancialClearanceAdapter`` stands in for a Billing
-context that does not exist yet, and is the one file here with an expiry date on it —
-Phase 5.2 replaces it, and nothing above this package may change when it does.
+The others are not persistence. ``InMemoryCourseInfoAdapter``,
+``InMemoryStudentAcademicStandingAdapter`` and ``BillingFinancialClearanceAdapter`` are
+anti-corruption layers, standing where Course Catalog, Academic Records and Billing are
+reached over a boundary that is not a Python import; all three are fed their answers rather
+than reading those contexts, which is the dependency rule showing up as a constructor.
+
+``BillingFinancialClearanceAdapter`` is the one that carries a rule rather than a
+translation: the ≥70%/100% thresholds live in it and nowhere else, and Phase 5.2 added it
+without a line changing above this package. ``StubFinancialClearanceAdapter`` stays beside
+it as the fake the application tests drive — the same relationship the two Course Catalog
+answers would have if the catalog were reachable today.
 """
 
+from enrollment.adapters.outbound.billing_financial_clearance_adapter import (
+    BILLING_CLEARANCE_THRESHOLDS,
+    BillingFinancialClearanceAdapter,
+    ClearanceThresholds,
+    MalformedSessionFeeError,
+    SessionFeeLedger,
+    SessionFeePosition,
+)
 from enrollment.adapters.outbound.in_memory_course_info_adapter import InMemoryCourseInfoAdapter
 from enrollment.adapters.outbound.in_memory_course_offering_repository import (
     InMemoryCourseOfferingRepository,
@@ -28,9 +40,15 @@ from enrollment.adapters.outbound.stub_financial_clearance_adapter import (
 )
 
 __all__ = [
+    "BILLING_CLEARANCE_THRESHOLDS",
+    "BillingFinancialClearanceAdapter",
+    "ClearanceThresholds",
     "InMemoryCourseInfoAdapter",
     "InMemoryCourseOfferingRepository",
     "InMemoryEnrollmentRepository",
     "InMemoryStudentAcademicStandingAdapter",
+    "MalformedSessionFeeError",
+    "SessionFeeLedger",
+    "SessionFeePosition",
     "StubFinancialClearanceAdapter",
 ]

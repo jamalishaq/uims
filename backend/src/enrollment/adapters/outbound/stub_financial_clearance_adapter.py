@@ -1,20 +1,21 @@
-"""The stub behind ``FinancialClearancePort``, standing in for Billing until Phase 5.
+"""The fake behind ``FinancialClearancePort``: a clearance answer stated rather than computed.
 
-**This file is temporary and the code above it is not.** Phase 5.2 replaces this class with
-the real adapter — ≥70% of the session fee to register for first semester, 100% for second
-— and the requirement stated in the build playbook is that *Enrollment code must not change
-at all* when it does. That is what this stub is for: to make the port real now, so the
-swap later is a swap and not a redesign. Nothing in ``domain/``, ``ports/`` or
-``application/`` knows this class exists.
+**Written as a stand-in, kept as a fake.** Until Phase 5.2 this was the only implementation of
+the port, standing in for a Billing context that did not exist. It now sits beside the real one,
+``BillingFinancialClearanceAdapter``, and does the job ``InMemoryCourseInfoAdapter`` does for
+Course Catalog: it lets a test say what the other context would answer, in one line, without
+standing a ledger up. That the swap could
+be made without touching a line of ``domain/``, ``ports/``, ``application/`` or a single
+application test is the requirement the build playbook set for Phase 5.2, and keeping this
+class is what met it.
 
-It answers cleared for everyone by default, which is the playbook's instruction and the
-only honest thing a stub can do — Billing has no ledger yet, so nobody is *known* to be
-short. The overrides exist so the refusal path can be exercised: a rule that could not be
-tested failing would ship untested until Phase 5, and by then it would be load-bearing.
+It answers cleared for everyone by default, because a test about prerequisites or credit load
+should not have to pay a session fee to get to the assertion it cares about. ``deny`` is how
+the refusal path gets exercised, per student and per term.
 
-Not an anti-corruption layer in the way its two neighbours are, because there is nothing
-yet to translate. What it does establish is the *shape* of the translation: Billing's
-percentages, balances and fee schedules stop here, and a boolean crosses.
+There is no rule in here and there must not be one. The percentages, the fee and the arithmetic
+live in the real adapter; what this class establishes is the shape they stop at — a boolean
+crosses, and nothing else.
 """
 
 from enrollment.domain.values import Term
