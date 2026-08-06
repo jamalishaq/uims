@@ -11,8 +11,11 @@ how it was built, phase by phase.
 ## Requirements
 
 - Python 3.12+
-- PostgreSQL 16 (`docker compose up -d db` gives you one)
+- PostgreSQL 16 (`docker compose up -d db` from the repository root gives you one)
 - [uv](https://docs.astral.sh/uv/)
+
+Or run the whole stack — database, API and frontend — in containers, in which case none of the
+above needs to be on this machine: see *Docker* below.
 
 ## Setup
 
@@ -38,6 +41,27 @@ uv run uvicorn main:app --reload            # development
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4   # production
 ```
 
+## Docker
+
+`docker-compose.yaml` lives at the **repository root**, not here, because it now runs the
+frontend too. Every compose command in this file is run from there.
+
+```bash
+cp backend/.env.example backend/.env      # compose reads it; it will not start without it
+docker compose up                          # db + API + frontend dev server
+docker compose run --rm backend python scripts/seed.py --reset   # once per pgdata volume
+```
+
+The API is bind-mounted and runs uvicorn's reloader, so an edit to `src/` restarts it in
+place; the image is only rebuilt when `pyproject.toml` or `uv.lock` changes. Compose overrides
+`DATABASE_URL` to point at the `db` service — inside a container `localhost` is the container —
+and every other variable comes from `backend/.env` unchanged, which is what lets the same file
+serve a host-run `uv run uvicorn`.
+
+The seeder is a one-time step per volume, not per `up`: `pgdata` is a named volume and survives
+`docker compose down`. It takes a `docker compose down -v` to lose it, and then the database is
+empty *and has no schema* — see *Database* below.
+
 - Swagger UI: <http://localhost:8000/docs>
 - OpenAPI schema: <http://localhost:8000/openapi.json>
 - Liveness probe: `GET /health` — deliberately does not touch the database, so a blip the
@@ -55,8 +79,10 @@ look healthy.
 ## Seed data
 
 ```bash
-docker compose up -d db
-uv run python scripts/seed.py --reset
+docker compose up -d db                     # from the repository root
+uv run python scripts/seed.py --reset       # from backend/
+
+docker compose run --rm backend python scripts/seed.py --reset   # or entirely in Docker
 ```
 
 `scripts/seed.py` writes one small demo university across all eight contexts — faculties,
@@ -86,7 +112,7 @@ It lives outside `src/` on purpose: a module that touches all seven contexts wou
 
 ```bash
 uv run pytest                               # in-memory, needs no database
-docker compose up -d db
+docker compose up -d db                     # from the repository root
 UMS_TEST_BACKEND=postgres uv run pytest      # the same tests, against Postgres
 uv run ruff check && uv run ruff format --check
 ```
