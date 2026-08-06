@@ -31,6 +31,7 @@ from faculty_department.application.errors import (
     ApplicationError,
     DepartmentNotFoundError,
     FacultyNotFoundError,
+    InvalidRankError,
     LecturerNotFoundError,
     ProgramNotFoundError,
     SessionNotFoundError,
@@ -46,6 +47,20 @@ from faculty_department.application.manage_calendar import (
     PlanSession,
     PlanSessionCommand,
 )
+from faculty_department.application.manage_lecturers import (
+    AmendLecturerProfile,
+    AmendLecturerProfileCommand,
+    AssignLecturerToCourse,
+    AssignLecturerToCourseCommand,
+    QualificationInput,
+    WithdrawLecturerFromCourse,
+    WithdrawLecturerFromCourseCommand,
+)
+from faculty_department.application.read_lecturers import (
+    ListDepartmentLecturers,
+    ListDepartmentLecturersCommand,
+    ReadLecturer,
+)
 from faculty_department.application.read_program_placement import ReadProgramPlacement
 from faculty_department.application.register_lecturer import (
     RegisterLecturer,
@@ -60,12 +75,17 @@ from faculty_department.application.views import (
     LecturerView,
     ProgramPlacementView,
     ProgramView,
+    QualificationView,
     SemesterView,
     SessionView,
 )
 
 __all__ = [
+    "AmendLecturerProfile",
+    "AmendLecturerProfileCommand",
     "ApplicationError",
+    "AssignLecturerToCourse",
+    "AssignLecturerToCourseCommand",
     "CourseAssignmentView",
     "CreateDepartment",
     "CreateDepartmentCommand",
@@ -78,8 +98,11 @@ __all__ = [
     "FacultyNotFoundError",
     "FacultyView",
     "GradeSubmittedView",
+    "InvalidRankError",
     "LecturerNotFoundError",
     "LecturerView",
+    "ListDepartmentLecturers",
+    "ListDepartmentLecturersCommand",
     "ListDepartmentPrograms",
     "ListDepartmentProgramsCommand",
     "OpenSession",
@@ -90,6 +113,9 @@ __all__ = [
     "ProgramNotFoundError",
     "ProgramPlacementView",
     "ProgramView",
+    "QualificationInput",
+    "QualificationView",
+    "ReadLecturer",
     "ReadProgramPlacement",
     "RegisterLecturer",
     "RegisterLecturerCommand",
@@ -100,4 +126,6 @@ __all__ = [
     "SetProgramAdmissionsCommand",
     "SubmitGrade",
     "SubmitGradeCommand",
+    "WithdrawLecturerFromCourse",
+    "WithdrawLecturerFromCourseCommand",
 ]

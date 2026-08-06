@@ -22,6 +22,7 @@ from faculty_department.application.errors import (
     SessionNotFoundError,
 )
 from faculty_department.domain.errors import (
+    DuplicateCourseAssignmentError,
     FacultyDepartmentError,
     LecturerNotAssignedToCourseError,
     SemesterNotInSessionError,
@@ -53,6 +54,7 @@ EXCEPTION_STATUSES: ExceptionStatuses = {
     SessionAlreadyOpenError: 409,
     SessionAlreadyClosedError: 409,
     SemesterNotInSessionError: 409,
+    DuplicateCourseAssignmentError: 409,
     DuplicateAggregateError: 409,
     # 422 — the submission cannot describe a grade.
     FacultyDepartmentError: 422,

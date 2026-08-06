@@ -40,3 +40,12 @@ class DepartmentNotFoundError(ApplicationError):
 
 class ProgramNotFoundError(ApplicationError):
     """No program is stored under the given identifier."""
+
+
+class InvalidRankError(ApplicationError):
+    """A rank or employment status was named that this university does not have.
+
+    An error rather than a silently dropped field: a rank discarded on the way in would leave
+    the record saying nothing, which reads identically to nobody having filled it in — and the
+    person who typed it would have no way to tell.
+    """

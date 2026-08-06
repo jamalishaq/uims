@@ -237,12 +237,67 @@ class CourseAssignmentResponse(BaseModel):
     session_id: str
 
 
+class QualificationSchema(BaseModel):
+    """One degree a lecturer holds.
+
+    ``degree`` is free text and not an enum. Degree names vary by institution and by era —
+    ``M.Eng``, ``MBBS``, ``B.A. (Hons)`` — and an enum that rejected a real one would force
+    whoever entered it to pick a wrong one.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    degree: str = Field(min_length=1)
+    discipline: str = Field(min_length=1)
+    institution: str = Field(min_length=1)
+    year: int = Field(description="The year awarded. Must be in the past.")
+
+
+class AmendLecturerProfileRequest(BaseModel):
+    """A lecturer's staff record, as it should now read.
+
+    A replacement rather than a patch: omitted fields **clear**, because this is a form being
+    saved. ``rank`` and ``employment_status`` are the wire values (``senior lecturer``,
+    ``full-time``); an unrecognised one is a 422 rather than a silently dropped field, since a
+    dropped rank reads identically to nobody having filled it in.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    rank: str | None = None
+    employment_status: str | None = None
+    qualifications: tuple[QualificationSchema, ...] = ()
+
+
+class AssignLecturerToCourseRequest(BaseModel):
+    """Which session a lecturer teaches a course in.
+
+    The course is in the path, so it is not repeated here — two places to say the same thing is
+    two places for them to disagree.
+
+    Scoped to a session on purpose: teaching CSC101 in 2026/2027 says nothing about 2027/2028,
+    which is what stops somebody grading a course forever on the strength of having taught it
+    once.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=1)
+
+
 class LecturerResponse(BaseModel):
-    """A lecturer and what they teach."""
+    """A lecturer, their staff record and what they teach.
+
+    ``rank`` and ``employment_status`` are ``null`` when nobody has recorded them — a real
+    state, and one a default would hide by reading identically to a checked value.
+    """
 
     lecturer_id: str
     department_id: str
     full_name: str
+    rank: str | None
+    employment_status: str | None
+    qualifications: tuple[QualificationSchema, ...]
     assignments: tuple[CourseAssignmentResponse, ...]
 
     @classmethod
@@ -251,10 +306,19 @@ class LecturerResponse(BaseModel):
             **(
                 vars(view)
                 | {
+                    "qualifications": tuple(
+                        QualificationSchema(**vars(held)) for held in view.qualifications
+                    ),
                     "assignments": tuple(
                         CourseAssignmentResponse(**vars(assignment))
                         for assignment in view.assignments
-                    )
+                    ),
                 }
             )
         )
+
+
+class LecturerListResponse(BaseModel):
+    """Everyone teaching in a department. An empty list is a normal answer."""
+
+    lecturers: tuple[LecturerResponse, ...]

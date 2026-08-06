@@ -26,9 +26,12 @@ from faculty_department.adapters.outbound.postgres import (
 from faculty_department.domain import (
     AcademicYear,
     Department,
+    EmploymentStatus,
     Faculty,
     Lecturer,
     Program,
+    Qualification,
+    Rank,
     Semester,
     SemesterOrdinal,
     Session,
@@ -122,6 +125,69 @@ class TestChildrenSurvive:
         assert stored.is_assigned_to("csc-101", "sess-2026")
         assert stored.is_assigned_to("csc-201", "sess-2026")
         assert len(stored.assignments) == 2
+
+    async def test_a_lecturers_staff_record_comes_back_with_them(
+        self, engine, clean_database
+    ) -> None:
+        """Rank and employment status are nullable columns and qualifications are a child
+        table, so this is the read that proves an ordered list survives a round trip."""
+        lecturer = Lecturer(
+            "lec-002",
+            "dept-csc",
+            "Dr Bola Adeyemi",
+            rank=Rank.SENIOR_LECTURER,
+            employment_status=EmploymentStatus.FULL_TIME,
+            qualifications=[
+                Qualification("M.Sc", "Computer Science", "University of Lagos", 2009),
+                Qualification("PhD", "Computer Science", "University of Ibadan", 2014),
+            ],
+        )
+        await PostgresLecturerRepository(engine).add(lecturer)
+
+        stored = await PostgresLecturerRepository(engine).get("lec-002")
+
+        assert stored is not None
+        assert stored.rank is Rank.SENIOR_LECTURER
+        assert stored.employment_status is EmploymentStatus.FULL_TIME
+        assert [held.degree for held in stored.qualifications] == ["M.Sc", "PhD"]
+
+    async def test_an_unrecorded_staff_record_stays_unrecorded(
+        self, engine, clean_database
+    ) -> None:
+        """``None`` must survive as ``None``. A round trip that invented a default would make
+        "nobody has checked" indistinguishable from a rank somebody entered."""
+        await PostgresLecturerRepository(engine).add(
+            Lecturer("lec-003", "dept-csc", "Dr Chidi Nwosu")
+        )
+
+        stored = await PostgresLecturerRepository(engine).get("lec-003")
+
+        assert stored is not None
+        assert stored.rank is None
+        assert stored.employment_status is None
+        assert stored.qualifications == ()
+
+    async def test_clearing_a_staff_record_removes_the_qualification_rows(
+        self, engine, clean_database
+    ) -> None:
+        """Children are rewritten wholesale, so an amendment that drops them must remove rows."""
+        repository = PostgresLecturerRepository(engine)
+        lecturer = Lecturer(
+            "lec-004",
+            "dept-csc",
+            "Dr Ada Eze",
+            rank=Rank.PROFESSOR,
+            qualifications=[Qualification("PhD", "Physics", "Ibadan", 2001)],
+        )
+        await repository.add(lecturer)
+
+        lecturer.amend_profile()
+        await repository.save(lecturer)
+
+        stored = await PostgresLecturerRepository(engine).get("lec-004")
+        assert stored is not None
+        assert stored.rank is None
+        assert stored.qualifications == ()
 
     async def test_withdrawing_an_assignment_is_persisted_as_an_absence(
         self, engine, clean_database

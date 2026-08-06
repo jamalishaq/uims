@@ -21,9 +21,11 @@ from faculty_department.ports.lecturer_repository import LecturerRepositoryPort
 class RegisterLecturerCommand:
     """A lecturer and the department they belong to.
 
-    No rank, employment status or qualifications yet — those are a later change, and the
-    values they may take are institutional facts (CLAUDE.md section 6) rather than something
-    to guess at while adding a create route.
+    The staff record — rank, employment status, qualifications — is **not set here**. A
+    lecturer is created as a name in a department, and ``AmendLecturerProfile`` fills the rest
+    in. That is not squeamishness about a longer command: a lecturer is often created from a
+    list of names before anybody has their file, and a create route that demanded a rank would
+    be a create route somebody works around by picking one.
     """
 
     lecturer_id: str

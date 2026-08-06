@@ -127,7 +127,10 @@ class PostgresLecturerRepository(PostgresRepository[Lecturer], LecturerRepositor
 
     @property
     def child_tables(self) -> Sequence[tuple[Table, Sequence[str]]]:
-        return ((t.lecturer_assignments, ("lecturer_id",)),)
+        return (
+            (t.lecturer_assignments, ("lecturer_id",)),
+            (t.lecturer_qualifications, ("lecturer_id",)),
+        )
 
     def identity_of(self, aggregate: Lecturer) -> tuple[str]:
         return (aggregate.lecturer_id,)
@@ -136,10 +139,17 @@ class PostgresLecturerRepository(PostgresRepository[Lecturer], LecturerRepositor
         return m.lecturer_row(aggregate)
 
     def child_rows_of(self, aggregate: Lecturer) -> Mapping[Table, Sequence[dict[str, Any]]]:
-        return {t.lecturer_assignments: m.assignment_rows(aggregate)}
+        return {
+            t.lecturer_assignments: m.assignment_rows(aggregate),
+            t.lecturer_qualifications: m.qualification_rows(aggregate),
+        }
 
     def restore(self, row: Row[Any], children: Mapping[Table, Sequence[Row[Any]]]) -> Lecturer:
-        return m.to_lecturer(row, m.children_of(children, t.lecturer_assignments))
+        return m.to_lecturer(
+            row,
+            m.children_of(children, t.lecturer_assignments),
+            m.children_of(children, t.lecturer_qualifications),
+        )
 
     async def add(self, lecturer: Lecturer) -> None:
         await self._add(lecturer)

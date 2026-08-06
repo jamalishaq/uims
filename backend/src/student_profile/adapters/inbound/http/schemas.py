@@ -51,3 +51,20 @@ class StudentResponse(BaseModel):
     @classmethod
     def of(cls, view: StudentView) -> "StudentResponse":
         return cls(**vars(view))
+
+
+class CorrectStudentBioDataRequest(BaseModel):
+    """What the record should now say about a student.
+
+    A replacement rather than a patch: the optional fields **clear** when omitted, because
+    this is a form being saved. There is no ``matric_number`` and no ``program_id`` — a
+    correction fixes what the university got wrong about a person, and neither of those is
+    bio-data.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str = Field(min_length=1)
+    date_of_birth: date | None = None
+    email: str | None = None
+    phone_number: str | None = None

@@ -84,8 +84,36 @@ lecturers = Table(
     Column("lecturer_id", String, primary_key=True),
     Column("department_id", String, nullable=False, index=True),
     Column("full_name", String, nullable=False),
+    Column("rank", String, nullable=True),
+    Column("employment_status", String, nullable=True),
     Column("ordinal", Integer, Identity(), nullable=False, unique=True),
 )
+"""``rank`` and ``employment_status`` are nullable because the aggregate treats them as
+optional, and for the same reason: a lecturer whose rank nobody has entered is a real state,
+and ``NOT NULL`` would force a default that reads identically to a checked value."""
+
+lecturer_qualifications = Table(
+    "lecturer_qualifications",
+    metadata,
+    Column(
+        "lecturer_id",
+        String,
+        ForeignKey(f"{SCHEMA}.lecturers.lecturer_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("position", Integer, primary_key=True),
+    Column("degree", String, nullable=False),
+    Column("discipline", String, nullable=False),
+    Column("institution", String, nullable=False),
+    Column("year", Integer, nullable=False),
+)
+"""Part of the ``Lecturer`` aggregate, like its assignments — no separate repository.
+
+``position`` is in the primary key rather than the four fields, because order is what the
+aggregate preserves and a composite key over the content would make two identical degrees
+from different years collide on nothing useful. The aggregate already refuses exact
+duplicates, so this key is about keeping the list stable rather than about uniqueness.
+"""
 
 lecturer_assignments = Table(
     "lecturer_assignments",

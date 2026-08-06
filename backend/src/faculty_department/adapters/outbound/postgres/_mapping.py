@@ -28,7 +28,7 @@ from faculty_department.domain.session import (
     Session,
     SessionStatus,
 )
-from faculty_department.domain.values import AcademicYear
+from faculty_department.domain.values import AcademicYear, EmploymentStatus, Qualification, Rank
 
 
 def faculty_row(faculty: Faculty) -> dict[str, Any]:
@@ -77,7 +77,31 @@ def lecturer_row(lecturer: Lecturer) -> dict[str, Any]:
         "lecturer_id": lecturer.lecturer_id,
         "department_id": lecturer.department_id,
         "full_name": lecturer.full_name,
+        "rank": lecturer.rank.value if lecturer.rank else None,
+        "employment_status": (
+            lecturer.employment_status.value if lecturer.employment_status else None
+        ),
     }
+
+
+def qualification_rows(lecturer: Lecturer) -> list[dict[str, Any]]:
+    """The degrees on file, numbered so the order survives a round trip.
+
+    Unlike ``assignment_rows`` these are not sorted: order is what the aggregate holds and
+    ``position`` is what preserves it. Sorting here would quietly rewrite the list somebody
+    entered.
+    """
+    return [
+        {
+            "lecturer_id": lecturer.lecturer_id,
+            "position": position,
+            "degree": qualification.degree,
+            "discipline": qualification.discipline,
+            "institution": qualification.institution,
+            "year": qualification.year,
+        }
+        for position, qualification in enumerate(lecturer.qualifications)
+    ]
 
 
 def assignment_rows(lecturer: Lecturer) -> list[dict[str, Any]]:
@@ -99,8 +123,29 @@ def assignment_rows(lecturer: Lecturer) -> list[dict[str, Any]]:
     )
 
 
-def to_lecturer(row: Row[Any], assignments: Sequence[Row[Any]]) -> Lecturer:
-    lecturer = Lecturer(row.lecturer_id, row.department_id, row.full_name)
+def to_lecturer(
+    row: Row[Any],
+    assignments: Sequence[Row[Any]],
+    qualifications: Sequence[Row[Any]] = (),
+) -> Lecturer:
+    lecturer = Lecturer(
+        row.lecturer_id,
+        row.department_id,
+        row.full_name,
+        rank=Rank(row.rank) if row.rank else None,
+        employment_status=(
+            EmploymentStatus(row.employment_status) if row.employment_status else None
+        ),
+        qualifications=[
+            Qualification(
+                degree=qualification.degree,
+                discipline=qualification.discipline,
+                institution=qualification.institution,
+                year=qualification.year,
+            )
+            for qualification in sorted(qualifications, key=lambda held: held.position)
+        ],
+    )
     for assignment in assignments:
         lecturer.assign_to_course(assignment.course_id, assignment.session_id)
     return lecturer
@@ -148,6 +193,7 @@ __all__ = [
     "faculty_row",
     "lecturer_row",
     "program_row",
+    "qualification_rows",
     "semester_rows",
     "session_row",
     "to_department",

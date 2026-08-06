@@ -197,16 +197,34 @@ class CourseAssignmentView:
 
 
 @dataclass(frozen=True)
+class QualificationView:
+    """One degree a lecturer holds."""
+
+    degree: str
+    discipline: str
+    institution: str
+    year: int
+
+
+@dataclass(frozen=True)
 class LecturerView:
-    """A lecturer and what they teach.
+    """A lecturer, their staff record and what they teach.
 
     ``assignments`` is sorted rather than left in set order: the aggregate holds a
     ``frozenset``, which has none, and an unstable response body cannot be cached or diffed.
+    ``qualifications`` is *not* sorted — the aggregate holds a tuple whose order is the order
+    somebody entered, and re-ordering it here would rewrite their record.
+
+    ``rank`` and ``employment_status`` are ``None`` when nobody has recorded them, which is a
+    real state rather than a missing one. See ``Lecturer`` on why neither has a default.
     """
 
     lecturer_id: str
     department_id: str
     full_name: str
+    rank: str | None
+    employment_status: str | None
+    qualifications: tuple[QualificationView, ...]
     assignments: tuple[CourseAssignmentView, ...]
 
     @classmethod
@@ -215,6 +233,19 @@ class LecturerView:
             lecturer_id=lecturer.lecturer_id,
             department_id=lecturer.department_id,
             full_name=lecturer.full_name,
+            rank=lecturer.rank.value if lecturer.rank else None,
+            employment_status=(
+                lecturer.employment_status.value if lecturer.employment_status else None
+            ),
+            qualifications=tuple(
+                QualificationView(
+                    degree=held.degree,
+                    discipline=held.discipline,
+                    institution=held.institution,
+                    year=held.year,
+                )
+                for held in lecturer.qualifications
+            ),
             assignments=tuple(
                 CourseAssignmentView(course_id=course_id, session_id=session_id)
                 for course_id, session_id in sorted(

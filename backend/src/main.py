@@ -142,6 +142,12 @@ from faculty_department.application.create_structure import (
 )
 from faculty_department.application.list_department_programs import ListDepartmentPrograms
 from faculty_department.application.manage_calendar import OpenSession, PlanSession
+from faculty_department.application.manage_lecturers import (
+    AmendLecturerProfile,
+    AssignLecturerToCourse,
+    WithdrawLecturerFromCourse,
+)
+from faculty_department.application.read_lecturers import ListDepartmentLecturers, ReadLecturer
 from faculty_department.application.read_program_placement import ReadProgramPlacement
 from faculty_department.application.register_lecturer import RegisterLecturer
 from faculty_department.application.submit_grade import SubmitGrade
@@ -154,6 +160,8 @@ from student_profile.adapters.outbound.postgres import (
     PostgresMatricSequenceRepository,
     PostgresStudentRepository,
 )
+from student_profile.application.correct_student_bio_data import CorrectStudentBioData
+from student_profile.application.read_student import ReadStudent
 from student_profile.application.register_new_student import RegisterNewStudent
 from student_profile.domain.matric_number_issuer import MatricNumberIssuer
 
@@ -607,6 +615,11 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
             plan_session=PlanSession(sessions),
             open_session=OpenSession(sessions, faculty_events),
             register_lecturer=RegisterLecturer(lecturers, departments),
+            amend_lecturer_profile=AmendLecturerProfile(lecturers),
+            assign_lecturer_to_course=AssignLecturerToCourse(lecturers),
+            withdraw_lecturer_from_course=WithdrawLecturerFromCourse(lecturers),
+            read_lecturer=ReadLecturer(lecturers),
+            list_department_lecturers=ListDepartmentLecturers(lecturers),
         ),
     )
     setattr(
@@ -674,7 +687,11 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     setattr(
         app.state,
         student_profile_http.STATE_KEY,
-        student_profile_http.StudentProfileDependencies(register_new_student=register_new_student),
+        student_profile_http.StudentProfileDependencies(
+            register_new_student=register_new_student,
+            read_student=ReadStudent(students),
+            correct_student_bio_data=CorrectStudentBioData(students),
+        ),
     )
 
 

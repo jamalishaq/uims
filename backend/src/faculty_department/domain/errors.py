@@ -18,6 +18,14 @@ class InvalidAcademicYearError(FacultyDepartmentError):
     """An academic year was not a plausible four-digit starting year."""
 
 
+class InvalidQualificationError(FacultyDepartmentError):
+    """A lecturer's qualification was missing a field or dated outside the plausible range."""
+
+
+class InvalidLecturerProfileError(FacultyDepartmentError):
+    """A lecturer's rank, employment status or qualification list was not what it claimed."""
+
+
 class InvalidScoreError(FacultyDepartmentError):
     """A submitted score fell outside the permitted 0-100 range."""
 

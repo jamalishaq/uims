@@ -10,6 +10,8 @@ from faculty_department.domain.errors import (
     DuplicateCourseAssignmentError,
     FacultyDepartmentError,
     InvalidAcademicYearError,
+    InvalidLecturerProfileError,
+    InvalidQualificationError,
     InvalidScoreError,
     InvalidSemesterSetError,
     LecturerNotAssignedToCourseError,
@@ -25,7 +27,13 @@ from faculty_department.domain.grade_submission import GradeSubmission
 from faculty_department.domain.lecturer import CourseAssignment, Lecturer
 from faculty_department.domain.program import Program
 from faculty_department.domain.session import Semester, SemesterOrdinal, Session, SessionStatus
-from faculty_department.domain.values import AcademicYear, Score
+from faculty_department.domain.values import (
+    AcademicYear,
+    EmploymentStatus,
+    Qualification,
+    Rank,
+    Score,
+)
 
 __all__ = [
     "AcademicYear",
@@ -33,17 +41,22 @@ __all__ = [
     "Department",
     "DomainEvent",
     "DuplicateCourseAssignmentError",
+    "EmploymentStatus",
     "Faculty",
     "FacultyDepartmentError",
     "GradeSubmission",
     "GradeSubmitted",
     "InvalidAcademicYearError",
+    "InvalidLecturerProfileError",
+    "InvalidQualificationError",
     "InvalidScoreError",
     "InvalidSemesterSetError",
     "Lecturer",
     "LecturerNotAssignedToCourseError",
     "MissingIdentifierError",
     "Program",
+    "Qualification",
+    "Rank",
     "Score",
     "Semester",
     "SemesterNotInSessionError",

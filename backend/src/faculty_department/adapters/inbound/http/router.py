@@ -20,12 +20,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from faculty_department.adapters.inbound.http.schemas import (
+    AmendLecturerProfileRequest,
+    AssignLecturerToCourseRequest,
     CreateDepartmentRequest,
     CreateFacultyRequest,
     CreateProgramRequest,
     DepartmentResponse,
     FacultyResponse,
     GradeSubmittedResponse,
+    LecturerListResponse,
     LecturerResponse,
     PlanSessionRequest,
     ProgramListResponse,
@@ -56,6 +59,20 @@ from faculty_department.application.manage_calendar import (
     PlannedSemester,
     PlanSession,
     PlanSessionCommand,
+)
+from faculty_department.application.manage_lecturers import (
+    AmendLecturerProfile,
+    AmendLecturerProfileCommand,
+    AssignLecturerToCourse,
+    AssignLecturerToCourseCommand,
+    QualificationInput,
+    WithdrawLecturerFromCourse,
+    WithdrawLecturerFromCourseCommand,
+)
+from faculty_department.application.read_lecturers import (
+    ListDepartmentLecturers,
+    ListDepartmentLecturersCommand,
+    ReadLecturer,
 )
 from faculty_department.application.read_program_placement import ReadProgramPlacement
 from faculty_department.application.register_lecturer import (
@@ -92,6 +109,11 @@ class FacultyDepartmentDependencies:
         plan_session: PlanSession,
         open_session: OpenSession,
         register_lecturer: RegisterLecturer,
+        amend_lecturer_profile: AmendLecturerProfile,
+        assign_lecturer_to_course: AssignLecturerToCourse,
+        withdraw_lecturer_from_course: WithdrawLecturerFromCourse,
+        read_lecturer: ReadLecturer,
+        list_department_lecturers: ListDepartmentLecturers,
     ) -> None:
         self.submit_grade = submit_grade
         self.read_program_placement = read_program_placement
@@ -103,6 +125,11 @@ class FacultyDepartmentDependencies:
         self.plan_session = plan_session
         self.open_session = open_session
         self.register_lecturer = register_lecturer
+        self.amend_lecturer_profile = amend_lecturer_profile
+        self.assign_lecturer_to_course = assign_lecturer_to_course
+        self.withdraw_lecturer_from_course = withdraw_lecturer_from_course
+        self.read_lecturer = read_lecturer
+        self.list_department_lecturers = list_department_lecturers
 
 
 def _deps(request: Request) -> FacultyDepartmentDependencies:
@@ -156,9 +183,6 @@ async def read_program_placement(
             detail=f"no placement for program {program_id!r} in session {session_id!r}",
         )
     return ProgramPlacementResponse.of(placement)
-
-
-__all__ = ["STATE_KEY", "FacultyDepartmentDependencies", "router"]
 
 
 # ---- the academic structure ----
@@ -335,3 +359,133 @@ async def register_lecturer(body: RegisterLecturerRequest, deps: Deps) -> Lectur
         )
     )
     return LecturerResponse.of(LecturerView.of(lecturer))
+
+
+@router.get(
+    "/lecturers/{lecturer_id}",
+    response_model=LecturerResponse,
+    summary="Read a lecturer",
+    responses=error_responses(404, 422, 500, 503),
+)
+async def read_lecturer(lecturer_id: str, deps: Deps) -> LecturerResponse:
+    """Their staff record and every course they teach, across sessions."""
+    lecturer = await deps.read_lecturer.find(lecturer_id)
+    if lecturer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"no lecturer stored with id {lecturer_id!r}",
+        )
+    return LecturerResponse.of(LecturerView.of(lecturer))
+
+
+@router.get(
+    "/departments/{department_id}/lecturers",
+    response_model=LecturerListResponse,
+    summary="List a department's lecturers",
+    responses=error_responses(422, 500, 503),
+)
+async def list_department_lecturers(department_id: str, deps: Deps) -> LecturerListResponse:
+    """The staff half of a departmental view, beside the programs list.
+
+    A department nobody has is an empty list, not a 404: the use case raises nothing, and an
+    unknown department is indistinguishable from one with no staff yet.
+    """
+    lecturers = await deps.list_department_lecturers.execute(
+        ListDepartmentLecturersCommand(department_id=department_id)
+    )
+    return LecturerListResponse(
+        lecturers=tuple(LecturerResponse.of(view) for view in LecturerView.of_each(lecturers))
+    )
+
+
+@router.put(
+    "/lecturers/{lecturer_id}/profile",
+    response_model=LecturerResponse,
+    summary="Amend a lecturer's rank, employment status and qualifications",
+    responses=error_responses(404, 422, 500, 503),
+)
+async def amend_lecturer_profile(
+    lecturer_id: str, body: AmendLecturerProfileRequest, deps: Deps
+) -> LecturerResponse:
+    """``PUT`` because it replaces the staff record: omitted fields clear.
+
+    Not a promotion. Nothing records that a rank changed, when, or on whose authority — a
+    promotion history is a different aggregate and nobody has asked for one.
+    """
+    lecturer = await deps.amend_lecturer_profile.execute(
+        AmendLecturerProfileCommand(
+            lecturer_id=lecturer_id,
+            rank=body.rank,
+            employment_status=body.employment_status,
+            qualifications=tuple(
+                QualificationInput(
+                    degree=held.degree,
+                    discipline=held.discipline,
+                    institution=held.institution,
+                    year=held.year,
+                )
+                for held in body.qualifications
+            ),
+        )
+    )
+    return LecturerResponse.of(LecturerView.of(lecturer))
+
+
+@router.put(
+    "/lecturers/{lecturer_id}/courses/{course_id}",
+    status_code=status.HTTP_201_CREATED,
+    response_model=LecturerResponse,
+    summary="Assign a lecturer to a course for a session",
+    responses=error_responses(404, 409, 422, 500, 503),
+)
+async def assign_lecturer_to_course(
+    lecturer_id: str, course_id: str, body: AssignLecturerToCourseRequest, deps: Deps
+) -> LecturerResponse:
+    """What makes ``SubmitGrade`` reachable: it authorizes against exactly this.
+
+    The course id is Course Catalog's and is **not** checked against it. A query port for that
+    would be a new cross-context dependency to catch a typo, and the typo is already visible —
+    a grade for a course the catalog does not know is refused when Academic Records looks for
+    its credit units.
+
+    A 409 means they already teach it in that session.
+    """
+    await deps.assign_lecturer_to_course.execute(
+        AssignLecturerToCourseCommand(
+            lecturer_id=lecturer_id, course_id=course_id, session_id=body.session_id
+        )
+    )
+    lecturer = await deps.read_lecturer.find(lecturer_id)
+    return LecturerResponse.of(LecturerView.of(lecturer))  # type: ignore[arg-type]
+
+
+@router.delete(
+    "/lecturers/{lecturer_id}/courses/{course_id}",
+    response_model=LecturerResponse,
+    summary="Withdraw a lecturer from a course for a session",
+    responses=error_responses(403, 404, 422, 500, 503),
+)
+async def withdraw_lecturer_from_course(
+    lecturer_id: str,
+    course_id: str,
+    session_id: Annotated[str, Query(description="The session to withdraw them from.")],
+    deps: Deps,
+) -> LecturerResponse:
+    """Grades already submitted are untouched.
+
+    They live in Academic Records, which was told a fact rather than handed a permission —
+    withdrawing somebody from a course they taught last semester must not unpick a transcript.
+
+    The 403 is ``LecturerNotAssignedToCourseError``, which is this context's authority error
+    and reads oddly here: it says they do not teach it, which is why there is nothing to
+    withdraw.
+    """
+    lecturer = await deps.withdraw_lecturer_from_course.execute(
+        WithdrawLecturerFromCourseCommand(
+            lecturer_id=lecturer_id, course_id=course_id, session_id=session_id
+        )
+    )
+    return LecturerResponse.of(LecturerView.of(lecturer))
+
+
+__all__ = ["STATE_KEY", "FacultyDepartmentDependencies", "router"]
