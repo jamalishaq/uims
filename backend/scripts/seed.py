@@ -1118,17 +1118,70 @@ async def _seed_identity(engine: AsyncEngine, issued: dict[str, str], summary: S
 
 
 async def create_schema(engine: AsyncEngine) -> None:
-    """Create the seven schemas and their tables, in ``tests/conftest.py``'s exact shape.
+    """Create the eight schemas and their tables, in ``tests/conftest.py``'s exact shape.
 
     A seeder that assumed the tables existed would be unusable on a fresh ``docker compose
     up -d db``, which is the only database most developers here will ever point it at. This
-    is not a migration: see the module docstring.
+    is not a migration: see the module docstring, and :func:`drifted_tables` for what that
+    costs.
     """
     async with engine.begin() as conn:
         for metadata in ALL_METADATA:
             await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{metadata.schema}"'))
         for metadata in ALL_METADATA:
             await conn.run_sync(metadata.create_all)
+
+
+async def drop_schema(engine: AsyncEngine) -> None:
+    """Drop every schema this system owns, and everything in them.
+
+    The blunt instrument that stands in for a migration. ``--recreate`` is the only caller.
+    """
+    async with engine.begin() as conn:
+        for metadata in ALL_METADATA:
+            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{metadata.schema}" CASCADE'))
+
+
+async def drifted_tables(engine: AsyncEngine) -> list[str]:
+    """Tables whose columns in the database do not match the ones the code declares.
+
+    **This exists because ``metadata.create_all`` silently does nothing to a table that already
+    exists.** There are no migrations in this repository, so the moment a column is added to a
+    ``_tables.py`` every database created before that change is quietly wrong — and the way it
+    surfaces is an ``UndefinedColumnError`` raised deep inside a repository, translated into a
+    port-level ``RepositoryError``, and reported as "the store refused an operation on lecturer
+    lec-001". That message names the aggregate and says nothing about the actual problem, which
+    is that the developer's database is three commits old.
+
+    So the drift is looked for and named, rather than being left to be diagnosed. It compares
+    column *names* only: a type that changed under a column is a real problem too, but a much
+    rarer one, and checking it properly means reimplementing type reflection for no benefit
+    here — the common case by far is a column that was added.
+    """
+    expected = {
+        (metadata.schema, table.name): {column.name for column in table.columns}
+        for metadata in ALL_METADATA
+        for table in metadata.sorted_tables
+    }
+    drifted = []
+    async with engine.connect() as conn:
+        for (schema, table), columns in sorted(expected.items()):
+            found = set(
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_schema = :schema AND table_name = :table"
+                        ),
+                        {"schema": schema, "table": table},
+                    )
+                ).scalars()
+            )
+            if not found:
+                continue  # not created yet; create_all will make it correctly
+            if missing := columns - found:
+                drifted.append(f"{schema}.{table} is missing {', '.join(sorted(missing))}")
+    return drifted
 
 
 def _all_table_names() -> Sequence[str]:
@@ -1202,7 +1255,9 @@ def _refuse_if_not_local(database_url: str, *, overridden: bool) -> str | None:
     )
 
 
-async def _run(database_url: str, *, wipe: bool, anywhere: bool = False) -> int:
+async def _run(
+    database_url: str, *, wipe: bool, anywhere: bool = False, recreate: bool = False
+) -> int:
     refusal = _refuse_if_not_local(database_url, overridden=anywhere)
     if refusal is not None:
         print(refusal, file=sys.stderr)
@@ -1210,7 +1265,28 @@ async def _run(database_url: str, *, wipe: bool, anywhere: bool = False) -> int:
 
     engine = engine_for(database_url)
     try:
+        if recreate:
+            await drop_schema(engine)
         await create_schema(engine)
+
+        # Named before anything is written, because the alternative is an UndefinedColumnError
+        # three layers down that reads like a broken aggregate rather than a stale database.
+        if drift := await drifted_tables(engine):
+            print(
+                "\n".join(
+                    (
+                        "this database was created before the current table definitions:",
+                        *(f"  {line}" for line in drift),
+                        "",
+                        "There are no migrations in this repository, so create_all cannot fix",
+                        "an existing table. Re-run with --recreate to drop every schema and",
+                        "rebuild it. This destroys everything in the database.",
+                    )
+                ),
+                file=sys.stderr,
+            )
+            return 3
+
         if wipe:
             await reset(engine)
         elif await is_populated(engine):
@@ -1254,6 +1330,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--recreate",
+        action="store_true",
+        help=(
+            "drop every schema and rebuild it before seeding. Needed after a table definition "
+            "changes, because there are no migrations and create_all cannot alter a table "
+            "that already exists. This destroys everything in the database."
+        ),
+    )
+    parser.add_argument(
         "--i-know-this-is-not-local",
         dest="anywhere",
         action="store_true",
@@ -1264,7 +1349,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
     database_url = arguments.database_url or os.environ.get("DATABASE_URL") or DEFAULT_DATABASE_URL
-    return asyncio.run(_run(database_url, wipe=arguments.reset, anywhere=arguments.anywhere))
+    return asyncio.run(
+        _run(
+            database_url,
+            wipe=arguments.reset,
+            anywhere=arguments.anywhere,
+            recreate=arguments.recreate,
+        )
+    )
 
 
 if __name__ == "__main__":
