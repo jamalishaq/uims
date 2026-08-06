@@ -56,13 +56,17 @@ cheaper of the two prices, and it is the arrangement
 
 Five principals, one credential each per unit, and the login id **is** the unit's own id.
 
-| Role | Login id looks like | Scope | What it is |
+| Role | Login id | Scope | What it is |
 |---|---|---|---|
-| `university` | `UNI-LASU` | the university | The bursary and the registry acting university-wide |
-| `faculty` | `FAC-SCI` | one faculty id | The faculty officer |
-| `department` | `DEPT-CSC` | one department id | The department registrar |
-| `lecturer` | the lecturer id | themselves | A lecturer |
-| `student` | **the matric number** | themselves | A student |
+| `university` | the university's id (`uni-lasu`) | the university | The bursary and the registry acting university-wide |
+| `faculty` | the faculty id (`fac-sci`) | one faculty | The faculty officer |
+| `department` | the department id (`dept-csc`) | one department | The department registrar |
+| `lecturer` | the lecturer id (`lec-001`) | themselves | A lecturer |
+| `student` | **their matric number** (`260591001`) | themselves | A student |
+
+The ids in brackets are the demo university's — see §6. What matters is the rule: the login id
+*is* the id the system already minted for the thing you are logging in as, except for a student,
+who types the number printed on their ID card.
 
 A student logs in with their matric number because that is the number they are given and the
 one the bursary and the gateway already quote. Everyone else logs in with the id the system
@@ -114,6 +118,18 @@ the two would drift.
   enough that a session survives a form being filled in.
 - **Refresh token: 12 hours**, delivered as an `HttpOnly`, `SameSite=Lax` cookie and never
   readable by JavaScript. `POST /auth/refresh` exchanges it for a new access token.
+- **The signing key must be at least 32 bytes** (RFC 7518 §3.2 for HS256), refused at
+  construction. A shorter key signs and verifies perfectly, which is exactly why a deployment
+  would keep one forever.
+- **The refresh cookie's `Secure` flag is derived from `ALLOWED_ORIGINS`, not configured.** A
+  `Secure` cookie is never sent to an `http://` origin, so a developer on `http://localhost`
+  could not stay logged in with it on — and the obvious fix, an `INSECURE_COOKIES` switch, is
+  one somebody eventually sets in production. Reading it off the origins means the insecure
+  case is exactly the case where the frontend is already on plain HTTP.
+- **Refreshing re-reads the credential from storage** rather than trusting the token's claims.
+  A role changed or a credential deactivated since login takes effect on the next refresh
+  instead of in twelve hours. That is the closest thing to revocation here, and its bound is
+  one access-token lifetime — thirty minutes — not zero.
 
 **Open, and not guessed: revocation.** There is no server-side refresh-token store, so a
 refresh token cannot be revoked before it expires — logging out clears the cookie and the
@@ -128,6 +144,13 @@ implemented as though it were free.
 
 `hashlib.scrypt`, per-credential 16-byte salt, stored as
 `scrypt$16384$8$1$<salt-b64>$<hash-b64>`. Verified with `hmac.compare_digest`.
+
+**Open, and not guessed: the login timing side-channel.** An unknown login id returns without
+hashing anything; a known one pays for a full scrypt derivation. The two are therefore
+distinguishable by a caller with a stopwatch, which partly undoes the identical-message
+property §5 relies on. Closing it means hashing against a dummy credential on the miss path —
+cheap to write, and a decision about how much a timing oracle costs here that nobody has made.
+Recorded rather than silently taken.
 
 Two reasons for scrypt over the usual `bcrypt`/`argon2` dependency:
 
@@ -212,11 +235,34 @@ whether applicants get credentials of their own.
 
 ## 6. Seeded credentials
 
-`scripts/seed.py` writes one credential per unit it creates, so the demo university can be
-logged into at every level. Every password is `<role>-demo-2026` and every one of them is a
-**development fixture** — the seeder already carries that warning for its fee amounts and
-quotas, and it applies here at least as strongly. The seeder refuses to run against a database
-whose URL does not look local unless `--i-know-this-is-not-local` is passed.
+`scripts/seed.py` writes one credential per unit it creates — 19 in the demo university — so it
+can be logged into at every level.
+
+| Level | Login id | Password |
+|---|---|---|
+| University | `uni-lasu` | `uni-lasu-demo-2026` |
+| Faculty | `fac-sci`, `fac-eng` | `fac-sci-demo-2026`, … |
+| Department | `dept-csc`, `dept-mth`, `dept-phy`, `dept-eee` | `dept-csc-demo-2026`, … |
+| Lecturer | `lec-001` … `lec-006` | `lec-001-demo-2026`, … |
+| Student | their matric number, e.g. `260591001` | `260591001-demo-2026` |
+
+The rule is `<login id lowercased>-demo-2026`, and every one is a **development fixture** — the
+seeder already carries that warning for its fee amounts and quotas, and it applies here at least
+as strongly.
+
+**The seeder now refuses a non-local database.** Its hostname must be in an allowlist
+(`localhost`, `127.0.0.1`, `db`, …) or `--i-know-this-is-not-local` must be passed. An
+allowlist rather than a search for "prod", because a blocklist waves through `staging`, `uat`
+and every hostname nobody thought of. This guard arrived *with* the credentials and not before:
+everything else the seeder writes is wrong data in the wrong database, recoverable and
+embarrassing; working logins whose passwords are printed in the source are a way in.
+
+**Applicants get no credential**, because there is no applicant role — see §5.
+
+**The university's own id, `uni-lasu`, is invented by the seeder.** Every other credential is
+scoped to something a context minted; no context models "the university", because until now
+nothing needed one. A `university` token's `scope_id` is therefore the only identifier in a
+token that does not name a row somewhere.
 
 ---
 

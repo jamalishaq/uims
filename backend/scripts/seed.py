@@ -6,7 +6,7 @@ written an aggregate is the suite. Start the API against an empty database and e
 route answers with nothing, which makes the HTTP surface impossible to develop a frontend
 against and impossible to demonstrate.
 
-This writes one small university across all seven contexts so that those routes have
+This writes one small university across all eight contexts so that those routes have
 something to return.
 
 **It writes through aggregates and repositories, never raw SQL** (CLAUDE.md section 4). The
@@ -15,7 +15,7 @@ mean "the order this was added", the ``allocated`` figure on a charge records *w
 absorbed which payment*, and the ``letter``/``grade_point`` on a transcript line are the ones
 that were awarded rather than ones recomputed under today's scale.
 
-**It lives outside ``src/``** because it touches all seven contexts, and rule (b) of
+**It lives outside ``src/``** because it touches all eight contexts, and rule (b) of
 ``tests/architecture/test_dependency_rule.py`` allows exactly one module in ``src/`` to do
 that — ``main``, by exact name. ``scripts/`` is not scanned by the fitness test and is not in
 ``pyproject.toml``'s wheel packages, so this stays a development tool and never ships.
@@ -43,6 +43,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from urllib.parse import urlsplit
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -53,6 +54,7 @@ import billing.adapters.outbound.postgres as billing_postgres
 import course_catalog.adapters.outbound.postgres as course_catalog_postgres
 import enrollment.adapters.outbound.postgres as enrollment_postgres
 import faculty_department.adapters.outbound.postgres as faculty_department_postgres
+import identity.adapters.outbound.postgres as identity_postgres
 import student_profile.adapters.outbound.postgres as student_profile_postgres
 from academic_records.adapters.outbound.postgres import PostgresAcademicRecordRepository
 from academic_records.domain import AcademicRecord
@@ -120,6 +122,9 @@ from faculty_department.domain import (
 from faculty_department.domain import (
     SemesterOrdinal as FacultySemesterOrdinal,
 )
+from identity.adapters.outbound.postgres import PostgresCredentialRepository
+from identity.domain import Credential
+from identity.domain import Role as IdentityRole
 from persistence import engine_for
 from student_profile.adapters.outbound.postgres import (
     PostgresMatricSequenceRepository,
@@ -145,6 +150,7 @@ ALL_METADATA = (
     course_catalog_postgres.metadata,
     enrollment_postgres.metadata,
     faculty_department_postgres.metadata,
+    identity_postgres.metadata,
     student_profile_postgres.metadata,
 )
 """One ``MetaData`` per context, in the order ``tests/conftest.py`` lists them."""
@@ -577,6 +583,33 @@ CORRECTION = ("stu-0002", "csc-101", FIRST_SEMESTER_ID, 62, "marks transposed", 
 # =========================================================================================
 
 
+# ---- identity ------------------------------------------------------------------------------
+
+UNIVERSITY_ID = "uni-lasu"
+"""The university itself, as a principal. Nothing else in the system holds this id.
+
+Every other credential below is scoped to something a real context minted — a faculty, a
+department, a lecturer, a student. The university has no aggregate anywhere: no context models
+"the university", because until now nothing needed to. So this one id is invented here, and
+that is worth flagging rather than hiding — a ``university`` token's ``scope_id`` is the only
+identifier in a token that does not name a row somewhere.
+"""
+
+DEMO_PASSWORD_SUFFIX = "-demo-2026"
+"""Every seeded password is ``<login id lowercased>`` + this.
+
+**A development fixture, and a dangerous one if it ever escapes.** The seeder refuses to run
+against a database whose URL does not look local (:func:`_refuse_if_not_local`) precisely
+because these are guessable by anyone who has read this file. Nothing here is an institutional
+fact and nothing here is a password anybody should ever type into a deployed system.
+"""
+
+
+def demo_password(login_id: str) -> str:
+    """The password a seeded credential is given. Long enough to clear the domain's floor."""
+    return f"{login_id.lower()}{DEMO_PASSWORD_SUFFIX}"
+
+
 @dataclass
 class Summary:
     """What was written, and what was deliberately skipped."""
@@ -620,6 +653,8 @@ async def seed_all(engine: AsyncEngine) -> Summary:
     await _seed_enrollment(engine, matric_of, summary)
     await _seed_academic_records(engine, matric_of, summary)
     await _seed_billing(engine, schedule, issued, summary)
+    # Last, because a student's login id is their matric number and those are issued above.
+    await _seed_identity(engine, issued, summary)
     return summary
 
 
@@ -1022,6 +1057,66 @@ async def _seed_billing(
 # =========================================================================================
 
 
+async def _seed_identity(engine: AsyncEngine, issued: dict[str, str], summary: Summary) -> None:
+    """One credential per unit, so the demo university can be logged into at every level.
+
+    Runs **last**, and the ordering is not incidental: a student's login id is their matric
+    number, and matric numbers do not exist until :func:`_seed_students` has issued them. A
+    credential seeded before that would have had to invent one, which is the one identifier in
+    this system nothing may invent.
+
+    Five kinds, matching the five roles ``auth.md`` confirms:
+
+    - the university, one account, scoped to itself;
+    - one per faculty, scoped to that faculty;
+    - one per department, scoped to that department;
+    - one per lecturer, scoped to themselves;
+    - one per matriculated student, **logging in with their matric number**.
+
+    Applicants get nothing, because there is no applicant role — recorded in ``auth.md`` as
+    open rather than guessed at here.
+    """
+    credentials = PostgresCredentialRepository(engine)
+    matric_of_student = {
+        STUDENT_IDS[applicant_id]: number for applicant_id, number in issued.items()
+    }
+
+    plan: list[tuple[str, str, IdentityRole]] = [
+        (UNIVERSITY_ID, UNIVERSITY_ID, IdentityRole.UNIVERSITY),
+        *((faculty_id, faculty_id, IdentityRole.FACULTY) for faculty_id, _, _ in FACULTIES),
+        *(
+            (department_id, department_id, IdentityRole.DEPARTMENT)
+            for department_id, _, _, _ in DEPARTMENTS
+        ),
+        *((lecturer_id, lecturer_id, IdentityRole.LECTURER) for lecturer_id, _, _, _ in LECTURERS),
+        *(
+            (matric_number, student_id, IdentityRole.STUDENT)
+            for student_id, matric_number in sorted(matric_of_student.items())
+        ),
+    ]
+
+    for login_id, principal_id, role in plan:
+        await credentials.add(
+            Credential.issue(
+                credential_id=f"cred-{principal_id}",
+                login_id=login_id,
+                principal_id=principal_id,
+                role=role,
+                scope_unit_id=principal_id,
+                password=demo_password(login_id),
+            )
+        )
+
+    summary.record("credentials", len(plan))
+    summary.note(
+        "every seeded password is '<login id lowercased>-demo-2026' — a development fixture, "
+        "never an institutional fact"
+    )
+    summary.note(
+        f"log in as the university with {UNIVERSITY_ID!r} / {demo_password(UNIVERSITY_ID)!r}"
+    )
+
+
 async def create_schema(engine: AsyncEngine) -> None:
     """Create the seven schemas and their tables, in ``tests/conftest.py``'s exact shape.
 
@@ -1064,7 +1159,55 @@ async def is_populated(engine: AsyncEngine) -> bool:
     return bool(count)
 
 
-async def _run(database_url: str, *, wipe: bool) -> int:
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "db", "postgres", "host.docker.internal"})
+"""Hostnames this script is willing to write demo credentials into.
+
+``db`` and ``postgres`` are here because that is what a service is called inside a Compose
+network, which is where the common case runs.
+"""
+
+
+def looks_local(database_url: str) -> bool:
+    """Whether the URL points somewhere it is safe to write guessable passwords.
+
+    Deliberately a *hostname allowlist* rather than a check for the word "prod". A blocklist
+    would pass ``staging``, ``uat`` and every hostname nobody thought of, and the failure mode
+    is a real database full of accounts whose passwords are printed in this file.
+    """
+    try:
+        host = urlsplit(database_url).hostname
+    except ValueError:
+        return False
+    return host in LOCAL_HOSTS
+
+
+def _refuse_if_not_local(database_url: str, *, overridden: bool) -> str | None:
+    """The message to refuse with, or ``None`` to proceed.
+
+    This exists because :func:`_seed_identity` writes **working logins with guessable
+    passwords**. Everything else the seeder writes is wrong data in the wrong database — bad,
+    recoverable, embarrassing. Credentials are a way in. The two are not the same risk and this
+    script stopped being safe to point anywhere the moment it learned to write them.
+
+    The override is spelled out in full rather than as ``-f``, because somebody typing
+    ``--i-know-this-is-not-local`` has been told what they are doing.
+    """
+    if looks_local(database_url) or overridden:
+        return None
+    host = urlsplit(database_url).hostname
+    return (
+        f"refusing to seed {host!r}: this writes logins whose passwords are written in\n"
+        "scripts/seed.py ('<login id>-demo-2026'). Seed only a local database.\n"
+        "If this really is a throwaway, pass --i-know-this-is-not-local."
+    )
+
+
+async def _run(database_url: str, *, wipe: bool, anywhere: bool = False) -> int:
+    refusal = _refuse_if_not_local(database_url, overridden=anywhere)
+    if refusal is not None:
+        print(refusal, file=sys.stderr)
+        return 2
+
     engine = engine_for(database_url)
     try:
         await create_schema(engine)
@@ -1110,9 +1253,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{DEFAULT_DATABASE_URL} — what `docker compose up -d db` gives you."
         ),
     )
+    parser.add_argument(
+        "--i-know-this-is-not-local",
+        dest="anywhere",
+        action="store_true",
+        help=(
+            "seed a non-local database anyway. This writes logins whose passwords are "
+            "written in this file; do not use it against anything real."
+        ),
+    )
     arguments = parser.parse_args(argv)
     database_url = arguments.database_url or os.environ.get("DATABASE_URL") or DEFAULT_DATABASE_URL
-    return asyncio.run(_run(database_url, wipe=arguments.reset))
+    return asyncio.run(_run(database_url, wipe=arguments.reset, anywhere=arguments.anywhere))
 
 
 if __name__ == "__main__":

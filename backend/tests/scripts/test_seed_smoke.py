@@ -40,6 +40,8 @@ from enrollment.adapters.outbound.postgres import (
     PostgresCourseOfferingRepository,
     PostgresEnrollmentRepository,
 )
+from identity.adapters.outbound.postgres import PostgresCredentialRepository
+from identity.domain import Role as IdentityRole
 from student_profile.adapters.outbound.postgres import PostgresStudentRepository
 from student_profile.domain import MatricNumber
 
@@ -347,3 +349,104 @@ class TestRunningItTwice:
 
         with pytest.raises(Exception):  # noqa: B017 — one per context; the type is not the point
             await seed.seed_all(engine)
+
+
+class TestTheSeededCredentials:
+    """Every unit can be logged into, and the passwords are the ones the summary printed.
+
+    A seeder that wrote credentials nobody could authenticate with would look identical to one
+    that worked, right up until somebody tried to log in — the rows would be there and the
+    hashes would be well-formed. So this checks the only thing that matters about a credential:
+    that the password verifies.
+    """
+
+    async def test_there_is_one_credential_per_unit(self, seeded, engine, seed) -> None:
+        expected = (
+            1  # the university
+            + len(seed.FACULTIES)
+            + len(seed.DEPARTMENTS)
+            + len(seed.LECTURERS)
+            + len(seed.STUDENT_IDS)
+        )
+        assert seeded.counts["credentials"] == expected
+        assert len(await PostgresCredentialRepository(engine).all()) == expected
+
+    async def test_every_seeded_password_actually_works(self, seeded, engine, seed) -> None:
+        """Read back through a fresh repository, so the hash is the one the column holds."""
+        credentials = PostgresCredentialRepository(engine)
+        for credential in await credentials.all():
+            assert credential.authenticate(seed.demo_password(credential.login_id)), (
+                f"the seeded password for {credential.login_id!r} does not verify"
+            )
+
+    async def test_a_student_logs_in_with_their_matric_number(
+        self, seeded, engine, matric_of
+    ) -> None:
+        """The confirmed rule, checked against the numbers the issuer actually produced."""
+        credentials = PostgresCredentialRepository(engine)
+        for student_id, matric_number in matric_of.items():
+            credential = await credentials.find_by_login_id(matric_number)
+            assert credential is not None, f"no credential for matric number {matric_number}"
+            assert credential.principal_id == student_id
+            assert credential.role is IdentityRole.STUDENT
+
+    async def test_no_applicant_is_given_a_login(self, seeded, engine, seed) -> None:
+        """There is no applicant role; auth.md records that as open rather than guessing one."""
+        principals = {c.principal_id for c in await PostgresCredentialRepository(engine).all()}
+        assert not principals & {fixture.applicant_id for fixture in seed.APPLICANTS}
+
+    async def test_each_role_is_scoped_to_the_unit_it_names(self, seeded, engine, seed) -> None:
+        credentials = {c.principal_id: c for c in await PostgresCredentialRepository(engine).all()}
+        for faculty_id, _, _ in seed.FACULTIES:
+            assert credentials[faculty_id].role is IdentityRole.FACULTY
+            assert credentials[faculty_id].scope.unit_id == faculty_id
+        for department_id, _, _, _ in seed.DEPARTMENTS:
+            assert credentials[department_id].role is IdentityRole.DEPARTMENT
+        for lecturer_id, _, _, _ in seed.LECTURERS:
+            assert credentials[lecturer_id].role is IdentityRole.LECTURER
+
+
+class TestItRefusesToSeedSomewhereReal:
+    """The guard that arrived with the credentials, and the reason it arrived with them.
+
+    Everything else this script writes is wrong data in the wrong place — recoverable and
+    embarrassing. Working logins whose passwords are printed in the source are a way in, and
+    that is a different kind of mistake to make by typo.
+
+    These need no database, so they are the one class here that is not Postgres-only — the
+    autouse skip above still applies, which is a small loss and not worth a second module.
+    """
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "postgresql+asyncpg://user:password@localhost:5432/ums",
+            "postgresql+asyncpg://user:password@127.0.0.1:5432/ums",
+            "postgresql+asyncpg://user:password@db:5432/ums",
+        ],
+    )
+    def test_a_local_url_is_allowed(self, seed, url: str) -> None:
+        assert seed.looks_local(url)
+        assert seed._refuse_if_not_local(url, overridden=False) is None
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "postgresql+asyncpg://user:password@db.example.edu:5432/ums",
+            "postgresql+asyncpg://user:password@10.0.0.5:5432/ums",
+            "postgresql+asyncpg://user:password@ums-staging.internal:5432/ums",
+        ],
+    )
+    def test_a_remote_url_is_refused(self, seed, url: str) -> None:
+        """An allowlist of hostnames, not a search for the word 'prod'.
+
+        A blocklist would wave through staging, UAT, and every hostname nobody thought of.
+        """
+        assert not seed.looks_local(url)
+        refusal = seed._refuse_if_not_local(url, overridden=False)
+        assert refusal is not None
+        assert "--i-know-this-is-not-local" in refusal
+
+    def test_the_override_is_honoured(self, seed) -> None:
+        url = "postgresql+asyncpg://user:password@db.example.edu:5432/ums"
+        assert seed._refuse_if_not_local(url, overridden=True) is None
