@@ -2,6 +2,11 @@
 
 React 18 + Vite + TanStack Query + Zustand + Tailwind CSS.
 
+**The rule this app is now built to: every page has an API route behind it.** The version this
+replaces had seven whole feature areas — attendance, assignments, exams, hostel, library, thesis
+and an alumni portal — with no backend at all, and nine roles the server has never issued a token
+for. If you are adding a page, find the route first.
+
 ---
 
 ## Requirements
@@ -15,19 +20,26 @@ React 18 + Vite + TanStack Query + Zustand + Tailwind CSS.
 
 ```bash
 npm install
-```
-
-Copy the environment file and fill in your values:
-
-```bash
 cp .env.example .env
 ```
 
 | Variable | Description |
 |---|---|
-| `VITE_API_BASE_URL` | Backend API base URL, e.g. `http://localhost:8000/api/v1` |
-| `VITE_WS_BASE_URL` | WebSocket base URL, e.g. `ws://localhost:8000/ws` |
-| `VITE_PAYSTACK_PUBLIC_KEY` | Paystack public key |
+| `VITE_API_BASE_URL` | The API's **origin only**, e.g. `http://localhost:8000`. The `/api/v1` prefix is added in `src/lib/api.js`. |
+| `VITE_PAYSTACK_PUBLIC_KEY` | Paystack public key. Not read yet — the gateway checkout is not wired up. |
+
+The backend needs `JWT_SECRET_KEY` set and `ALLOWED_ORIGINS` to include this app's origin, or
+the browser will not send the refresh cookie. See `backend/.env.example`.
+
+Seed the backend first — otherwise every read answers with nothing and there is nobody to log in
+as:
+
+```bash
+cd ../backend && uv run python scripts/seed.py --reset
+```
+
+Sign in with `uni-lasu` / `uni-lasu-demo-2026`. Every seeded password follows
+`<login id>-demo-2026`; the full list is in `auth.md` §6 at the repository root.
 
 ---
 
@@ -37,9 +49,38 @@ cp .env.example .env
 npm run dev        # development server → http://localhost:5173
 npm run build      # production build → dist/
 npm run preview    # preview production build locally
-npm test           # run tests with Vitest (watch mode)
-npm run coverage   # test coverage report
+npm test           # Vitest, watch mode
+npm run coverage   # coverage report
 ```
+
+---
+
+## Authentication
+
+Five principals, each signing in with the id the system already minted for them — except a
+student, who uses their matric number. There is **no role picker** on the login form: the server
+decides what a login id is, and choosing a role first would let somebody pick wrong and be told
+their correct password was invalid.
+
+| Role | Base path | Reaches |
+|---|---|---|
+| `university` | `/university` | Everything |
+| `faculty` | `/faculty` | Departments in that faculty, offer chains |
+| `department` | `/department` | Programmes, admissions, lecturers, students |
+| `lecturer` | `/lecturer` | Own profile, grade submission |
+| `student` | `/student` | Own record, registration, ledger |
+
+Three things about how the session is held, each a deliberate departure from the usual pattern:
+
+- **The access token is never decoded here.** `/auth/login` and `/auth/refresh` both return the
+  principal in the body, so the token stays opaque — something to put in a header. `jwt-decode`
+  is not a dependency.
+- **The access token is never persisted.** Only the principal survives a reload, which is enough
+  to render a shell. The `HttpOnly` refresh cookie restores the session through a value this code
+  cannot read; keeping a bearer token in `localStorage` would buy nothing and hand it to any
+  script on the page.
+- **`RequireAuth` is not a security boundary.** It decides what to render. Every route is guarded
+  server-side, so an edited principal produces a shell whose every request comes back 403.
 
 ---
 
@@ -47,75 +88,76 @@ npm run coverage   # test coverage report
 
 ```
 src/
-├── App.jsx                  # all routes, organised by role
-├── main.jsx                 # entry point — providers, Toaster
-├── index.css                # Inter font + Tailwind directives
+├── App.jsx                  # five role trees, one page per API route
+├── main.jsx                 # providers, Toaster
+├── index.css                # tokens, base styles, .surface
 ├── config/
-│   ├── roles.js             # role constants, ROLE_HOME, ROLE_BASE
-│   └── nav.js               # sidebar/bottom-nav links per role
+│   ├── roles.js             # the five roles, exactly as the token names them
+│   └── nav.js               # nav per role
 ├── lib/
-│   ├── api.js               # Axios instance (auth header + 401 refresh)
-│   └── queryClient.js       # TanStack QueryClient config
+│   ├── api.js               # Axios: bearer header, queued 401 refresh, error helpers
+│   └── queryClient.js
 ├── store/
-│   ├── authStore.js         # JWT token + rememberMe (Zustand)
-│   └── themeStore.js        # dark mode toggle (Zustand)
+│   ├── authStore.js         # access token (not persisted) + principal (persisted)
+│   └── themeStore.js
 ├── hooks/
-│   ├── useAuth.js           # decodes JWT → { user_id, role, ... }
-│   └── useTitle.js          # sets document.title
-├── features/
-│   ├── auth/                # PersistLogin, RequireAuth, login/logout queries
-│   ├── academic/            # faculties, departments, programs, sessions
-│   ├── admission/           # applications, decisions, enrolment
-│   ├── assignments/         # create, submit, grade
-│   ├── attendance/          # mark attendance, summary
-│   ├── courses/             # courses, sections, prerequisites
-│   ├── enrollment/          # student course registration
-│   ├── exams/               # timetable, exam slots
-│   ├── fees/                # fee schedule, Paystack payments
-│   ├── grades/              # score submission, GPA, transcript
-│   ├── hostel/              # application, room allocation
-│   ├── library/             # catalog, borrow, return
-│   ├── notifications/       # list, create
-│   ├── reports/             # enrollment stats, pass/fail, fee collection, CGPA
-│   ├── staff/               # staff directory
-│   ├── students/            # student records, status
-│   ├── thesis/              # register, submit, review
-│   └── transcript/          # transcript download
+│   ├── useAuth.js           # reads the stored principal; decodes nothing
+│   └── useTitle.js
+├── features/                # one module per bounded context
+│   ├── auth/                # login, refresh, /auth/me, credential administration
+│   ├── admissions/          # policy, the funnel, an application's life
+│   ├── academicRecords/     # transcript, CGPA, corrections
+│   ├── billing/             # ledgers, payments, session fees, reconciliation
+│   ├── courseCatalog/       # courses, prerequisites, retirement
+│   ├── enrollment/          # one route: register for a course
+│   ├── facultyDepartment/   # structure, calendar, lecturers, grade submission
+│   └── studentProfile/      # the identity anchor
 ├── layouts/
-│   ├── AppLayout.jsx        # root layout wrapper
-│   └── UserLayout.jsx       # sidebar + header + mobile nav
 ├── components/
-│   ├── ui/                  # Button, Card, Badge, Input, Select, Modal, Spinner
-│   ├── Sidebar.jsx          # desktop/tablet nav (indigo-950 bg)
-│   ├── Header.jsx           # top bar — dark toggle, notifications, user chip
-│   ├── BottomNav.jsx        # mobile nav for student / applicant / alumni
-│   ├── PageHeader.jsx       # page title + subtitle + action slot
-│   └── EmptyState.jsx       # empty list placeholder
+│   ├── ui/                  # Button, Card, Input, Select, Badge, Table, Modal, Feedback
+│   ├── Form.jsx             # FormCard + useFields — the shape almost every write takes
+│   ├── Sidebar.jsx          # prints the unit you are acting for, under the role
+│   ├── Header.jsx
+│   ├── BottomNav.jsx
+│   ├── PageHeader.jsx       # + StatTile, Detail
+│   └── EmptyState.jsx
 └── pages/
-    ├── public/              # Login, Apply, NotFound, Unauthorized
-    ├── student/
-    ├── applicant/
+    ├── public/              # Landing, Login, Apply, NotFound, Unauthorized
+    ├── shared/              # Account
+    ├── university/
+    ├── faculty/
+    ├── department/
     ├── lecturer/
-    ├── hod/
-    ├── dean/
-    ├── registrar/
-    ├── bursar/
-    ├── super_admin/
-    └── alumni/
+    └── student/
 ```
 
 ---
 
-## Roles
+## Things the UI is careful about
 
-| Role | Base path | Mobile nav |
-|---|---|---|
-| `student` | `/student` | Bottom tabs |
-| `applicant` | `/applicant` | Bottom tabs |
-| `alumni` | `/alumni` | Bottom tabs |
-| `lecturer` | `/lecturer` | Hamburger drawer |
-| `hod` | `/hod` | Hamburger drawer |
-| `dean` | `/dean` | Hamburger drawer |
-| `registrar` | `/registrar` | Hamburger drawer |
-| `bursar` | `/bursar` | Hamburger drawer |
-| `super_admin` | `/admin` | Hamburger drawer |
+These are not style choices. Each one is a place where the obvious rendering would be wrong.
+
+- **A registration refusal is a 200**, and it carries *every* unmet reason rather than the first.
+  The page lists them all — a student refused for a prerequisite, who fixes it and is then
+  refused for a full course, has queued twice for information the university had both times.
+- **Screening and offering are also 200 with an outcome.** "Not qualified" and "no offer
+  available" are decisions, not errors, and are not rendered as failures.
+- **Capacity and cohort do not add up**, and the admissions page shows them as two blocks with a
+  note saying so. Places claimed includes overflow from another programme's chain; the funnel
+  includes applicants placed elsewhere.
+- **Money and grades are rendered as the strings the API sent.** They are exact decimals; parsing
+  them into JavaScript floats to format them would reintroduce the rounding the server avoided.
+  Nothing in this app adds up money.
+- **Opening a session bills a cohort**, so it is a two-step confirmation and not a toggle.
+- **Every attempt at a course appears on the transcript.** Repeats are not collapsed into a best
+  attempt — that is the confirmed carry-over rule.
+- **Retiring a course does not remove it.** Transcripts refer to courses no longer taught.
+
+## Things the API does not offer, which this app does not fake
+
+- No route lists faculties, departments or sessions. Pages ask for the id you mean rather than
+  keeping a second copy of the university's structure that is free to drift.
+- No route returns who is registered for a course, so there is no class list.
+- No route returns a student's own registrations, so there is no "my courses" table.
+- There is no drop or withdraw. When a course may be dropped has never been stated to the system.
+- There is no route that changes a student's level.

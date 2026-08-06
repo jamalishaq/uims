@@ -1,114 +1,115 @@
-import { render, screen, waitFor, fireEvent } from '../../test-utils'
+import { render, screen, waitFor } from '../../test-utils'
 import userEvent from '@testing-library/user-event'
 import Login from '../../pages/public/Login'
 import useAuthStore from '../../store/authStore'
+import api from '../../lib/api'
 
-// Mock the login mutation function
-vi.mock('../../features/auth/queries', () => ({
-  login: vi.fn(),
-}))
+/**
+ * The login form, against the real `/auth/login` contract.
+ *
+ * The suite this replaces mocked `jwt-decode` — the form no longer decodes anything, because
+ * the server returns the principal in the body. What is worth testing here is the contract:
+ * the request shape, the session that results, and that a refusal shows the server's message
+ * rather than one this app invented.
+ */
+vi.mock('../../lib/api', async () => {
+  const actual = await vi.importActual('../../lib/api')
+  return {
+    ...actual,
+    default: { post: vi.fn(), get: vi.fn(), interceptors: { request: {}, response: {} } },
+  }
+})
 
-// Mock jwt-decode used inside Login on success
-vi.mock('jwt-decode', () => ({
-  jwtDecode: vi.fn(() => ({ role: 'student' })),
-}))
-
-// Mock react-hot-toast so we can spy on it
-vi.mock('react-hot-toast', () => ({
-  default: {
-    error: vi.fn(),
-    success: vi.fn(),
+const session = {
+  access_token: 'header.body.signature',
+  token_type: 'bearer',
+  expires_in_seconds: 1800,
+  principal: {
+    principal_id: 'stu-1',
+    login_id: '260591001',
+    role: 'student',
+    scope_kind: 'student',
+    scope_id: 'stu-1',
+    is_active: true,
   },
-}))
-
-import { login } from '../../features/auth/queries'
-import toast from 'react-hot-toast'
+}
 
 beforeEach(() => {
-  useAuthStore.setState({ token: null, rememberMe: false })
+  useAuthStore.setState({ accessToken: null, principal: null })
   vi.clearAllMocks()
 })
 
 describe('Login', () => {
-  it('renders email and password fields', () => {
+  it('renders one field for every kind of principal', () => {
     render(<Login />)
-    expect(screen.getByPlaceholderText(/you@university\.edu/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/••••••••/)).toBeInTheDocument()
+    // One field, no role picker: the server decides what a login id is, and choosing a role
+    // first would let somebody pick wrong and be told their correct password was invalid.
+    expect(screen.getByLabelText(/matric number or id/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument()
   })
 
-  it('renders sign in button', () => {
-    render(<Login />)
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-  })
-
-  it('shows validation error for empty email', async () => {
+  it('sends the login id and password in the shape the API declares', async () => {
+    api.post.mockResolvedValue({ data: session })
     const user = userEvent.setup()
-    render(<Login />)
 
+    render(<Login />)
+    await user.type(screen.getByLabelText(/matric number or id/i), '260591001')
+    await user.type(screen.getByLabelText(/password/i), 'a-real-password')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText(/enter a valid email/i)).toBeInTheDocument()
-    })
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/auth/login', {
+        login_id: '260591001',
+        password: 'a-real-password',
+      })
+    )
   })
 
-  it('shows validation error for invalid email format', async () => {
-    render(<Login />)
-
-    fireEvent.change(screen.getByPlaceholderText(/you@university\.edu/i), {
-      target: { value: 'notanemail' },
-    })
-    fireEvent.submit(document.querySelector('form'))
-
-    await waitFor(() => {
-      expect(screen.getByText(/enter a valid email/i)).toBeInTheDocument()
-    })
-  })
-
-  it('shows validation error for empty password', async () => {
+  it('installs the session the server returned', async () => {
+    api.post.mockResolvedValue({ data: session })
     const user = userEvent.setup()
-    render(<Login />)
 
-    await user.type(screen.getByPlaceholderText(/you@university\.edu/i), 'user@example.com')
+    render(<Login />)
+    await user.type(screen.getByLabelText(/matric number or id/i), '260591001')
+    await user.type(screen.getByLabelText(/password/i), 'a-real-password')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText(/password is required/i)).toBeInTheDocument()
-    })
+    await waitFor(() => expect(useAuthStore.getState().accessToken).toBe(session.access_token))
+    expect(useAuthStore.getState().principal.role).toBe('student')
   })
 
-  it('calls login mutation on valid submit', async () => {
-    login.mockReturnValue(new Promise(() => {}))
-
-    render(<Login />)
-
-    fireEvent.change(screen.getByPlaceholderText(/you@university\.edu/i), {
-      target: { value: 'student@university.edu' },
-    })
-    fireEvent.change(screen.getByPlaceholderText(/••••••••/), {
-      target: { value: 'secret123' },
-    })
-    fireEvent.submit(document.querySelector('form'))
-
-    await waitFor(() => expect(login).toHaveBeenCalled())
-    expect(login.mock.calls[0][0]).toMatchObject({
-      email: 'student@university.edu',
-      password: 'secret123',
-    })
-  })
-
-  it('shows error toast on login failure', async () => {
+  it('trims the login id but never the password', async () => {
+    // A leading space in a password is a character the person typed and will type again;
+    // stripping it would silently send a different password from the one they entered.
+    api.post.mockResolvedValue({ data: session })
     const user = userEvent.setup()
-    login.mockRejectedValue(new Error('Unauthorized'))
 
     render(<Login />)
-
-    await user.type(screen.getByPlaceholderText(/you@university\.edu/i), 'bad@example.com')
-    await user.type(screen.getByPlaceholderText(/••••••••/), 'wrongpass')
+    await user.type(screen.getByLabelText(/matric number or id/i), '  260591001  ')
+    await user.type(screen.getByLabelText(/password/i), ' spaced ')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Invalid email or password')
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/auth/login', {
+        login_id: '260591001',
+        password: ' spaced ',
+      })
+    )
+  })
+
+  it("shows the server's refusal rather than one of its own", async () => {
+    api.post.mockRejectedValue({
+      response: { status: 401, data: { error: 'AuthenticationFailedError', detail: 'login id or password is incorrect' } },
     })
+    const user = userEvent.setup()
+
+    render(<Login />)
+    await user.type(screen.getByLabelText(/matric number or id/i), 'nobody')
+    await user.type(screen.getByLabelText(/password/i), 'wrong')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(await screen.findByText(/login id or password is incorrect/i)).toBeInTheDocument()
+    expect(useAuthStore.getState().accessToken).toBeNull()
   })
 })

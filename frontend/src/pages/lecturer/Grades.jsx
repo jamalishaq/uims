@@ -1,214 +1,138 @@
-import { useMemo, useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import Input from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
+import PageHeader from '../../components/PageHeader'
+import { Note } from '../../components/ui/Feedback'
+import { FieldRow, FormCard, useFields } from '../../components/Form'
+import { useLecturer, useSubmitGrade } from '../../features/facultyDepartment/queries'
 import useAuth from '../../hooks/useAuth'
 import useTitle from '../../hooks/useTitle'
-import PageHeader from '../../components/PageHeader'
-import Table, { createColumnHelper } from '../../components/ui/Table'
-import Button from '../../components/ui/Button'
-import Badge from '../../components/ui/Badge'
-import { useSections } from '../../features/courses/queries'
-import { useSectionGrades, useSubmitGrade } from '../../features/grades/queries'
 
-const col = createColumnHelper()
+/**
+ * Submit one mark.
+ *
+ * **The score is the raw mark out of 100, and nothing else.** No letter, no grade point: what a
+ * mark is worth is Academic Records' grading scale, and a form that offered a letter would be
+ * this part of the system forming an opinion about a scale it does not own.
+ *
+ * **Submitting publishes.** By the time this returns, Academic Records has already consumed the
+ * event and the transcript line exists — the bus is synchronous and a subscriber's failure is
+ * not swallowed. So a success here means the mark is on the transcript, not that it is queued,
+ * and the page says so rather than implying a delay.
+ *
+ * The course dropdown is built from this lecturer's own assignments, because those are what the
+ * server authorizes against. Offering a free-text course would let somebody type one they do not
+ * teach and be refused for a reason the form could have prevented.
+ */
+export default function SubmitGrade() {
+  useTitle('Submit a grade')
+  const { scopeId } = useAuth()
+  const { data: lecturer } = useLecturer(scopeId)
+  const mutation = useSubmitGrade()
 
-function letterGrade(total) {
-  if (total >= 70) return { letter: 'A', color: 'success' }
-  if (total >= 60) return { letter: 'B', color: 'indigo' }
-  if (total >= 50) return { letter: 'C', color: 'warning' }
-  if (total >= 45) return { letter: 'D', color: 'warning' }
-  return { letter: 'F', color: 'danger' }
-}
+  const assignments = lecturer?.assignments ?? []
+  const { values, bind } = useFields({
+    assignment: '',
+    student_id: '',
+    semester_id: '',
+    score: '',
+  })
 
-export default function Grades() {
-  useTitle('Grades')
-  const { sub: user_id } = useAuth()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const paramSection = searchParams.get('section')
-
-  const [sectionId, setSectionId] = useState(paramSection ?? '')
-  // Per-row edits: { [enrollmentId]: { ca_score, exam_score } }
-  const [edits, setEdits] = useState({})
-  // Track which rows have been submitted to show computed result
-  const [submitted, setSubmitted] = useState({})
-
-  const { data: sections = [] } = useSections(user_id ? { lecturer_id: user_id } : undefined)
-  const { data: enrollments = [], isLoading } = useSectionGrades(sectionId || null)
-  const { mutate: submitGrade, isPending } = useSubmitGrade()
-
-  useEffect(() => {
-    if (paramSection && paramSection !== sectionId) setSectionId(paramSection)
-  }, [paramSection]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleSectionChange(e) {
-    const val = e.target.value
-    setSectionId(val)
-    setEdits({})
-    setSubmitted({})
-    if (val) setSearchParams({ section: val })
-    else setSearchParams({})
+  const submit = () => {
+    const [course_id, session_id] = values.assignment.split('@@')
+    mutation.mutate({
+      lecturer_id: scopeId,
+      session_id,
+      course_id,
+      student_id: values.student_id,
+      semester_id: values.semester_id,
+      score: Number(values.score),
+    })
   }
-
-  function handleEdit(enrollmentId, field, value) {
-    setEdits((prev) => ({
-      ...prev,
-      [enrollmentId]: { ...prev[enrollmentId], [field]: value },
-    }))
-  }
-
-  function handleSubmit(enrollment) {
-    const row = edits[enrollment.id] ?? {}
-    const ca = Number(row.ca_score ?? enrollment.ca_score ?? 0)
-    const exam = Number(row.exam_score ?? enrollment.exam_score ?? 0)
-
-    submitGrade(
-      { enrollmentId: enrollment.id, ca_score: ca, exam_score: exam },
-      {
-        onSuccess: (data) => {
-          toast.success(`Grade submitted for ${enrollment.student_name}.`)
-          setSubmitted((prev) => ({
-            ...prev,
-            [enrollment.id]: {
-              ca,
-              exam,
-              total: data?.total ?? ca + exam,
-              grade: data?.grade ?? letterGrade(ca + exam).letter,
-            },
-          }))
-        },
-        onError: (err) => {
-          toast.error(err?.response?.data?.detail || err?.message || 'Failed to submit grade.')
-        },
-      },
-    )
-  }
-
-  const columns = useMemo(
-    () => [
-      col.accessor('matric_number', { header: 'Matric No.' }),
-      col.accessor('student_name', { header: 'Student Name' }),
-      col.accessor('ca_score', {
-        header: 'CA Score',
-        cell: ({ row }) => {
-          const en = row.original
-          const val = edits[en.id]?.ca_score ?? en.ca_score ?? ''
-          return (
-            <input
-              type="number"
-              min={0}
-              max={40}
-              value={val}
-              onChange={(e) => handleEdit(en.id, 'ca_score', e.target.value)}
-              className="w-20 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-          )
-        },
-      }),
-      col.accessor('exam_score', {
-        header: 'Exam Score',
-        cell: ({ row }) => {
-          const en = row.original
-          const val = edits[en.id]?.exam_score ?? en.exam_score ?? ''
-          return (
-            <input
-              type="number"
-              min={0}
-              max={60}
-              value={val}
-              onChange={(e) => handleEdit(en.id, 'exam_score', e.target.value)}
-              className="w-20 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-          )
-        },
-      }),
-      col.display({
-        id: 'total',
-        header: 'Total',
-        cell: ({ row }) => {
-          const en = row.original
-          const sub = submitted[en.id]
-          if (sub) return <span className="font-medium">{sub.total}</span>
-          const ca = Number(edits[en.id]?.ca_score ?? en.ca_score ?? 0)
-          const exam = Number(edits[en.id]?.exam_score ?? en.exam_score ?? 0)
-          const total = ca + exam
-          return <span className="text-slate-400 dark:text-slate-500">{total || '—'}</span>
-        },
-      }),
-      col.display({
-        id: 'grade',
-        header: 'Grade',
-        cell: ({ row }) => {
-          const en = row.original
-          const sub = submitted[en.id]
-          if (sub) {
-            const { color } = letterGrade(sub.total)
-            return (
-              <span className="flex items-center gap-2">
-                <Badge color={color}>{sub.grade}</Badge>
-                <Badge color={sub.total >= 45 ? 'success' : 'danger'}>
-                  {sub.total >= 45 ? 'Pass' : 'Fail'}
-                </Badge>
-              </span>
-            )
-          }
-          return <span className="text-slate-400 dark:text-slate-500">—</span>
-        },
-      }),
-      col.display({
-        id: 'action',
-        header: '',
-        cell: ({ row }) => (
-          <Button
-            size="sm"
-            loading={isPending}
-            onClick={() => handleSubmit(row.original)}
-          >
-            Submit
-          </Button>
-        ),
-      }),
-    ],
-    [edits, submitted, isPending], // eslint-disable-line react-hooks/exhaustive-deps
-  )
 
   return (
-    <div>
+    <>
       <PageHeader
-        title="Grades"
-        subtitle="Enter and submit CA and exam scores for enrolled students."
+        title="Submit a grade"
+        description="One student, one course, one mark out of 100."
       />
 
-      {/* Section selector */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-          Select Section
-        </label>
-        <select
-          value={sectionId}
-          onChange={handleSectionChange}
-          className="w-full max-w-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <FormCard
+          title="Mark"
+          submitLabel="Submit grade"
+          mutation={mutation}
+          onSubmit={submit}
+          successTitle="Recorded on the transcript"
+          renderSuccess={(grade) => (
+            <span>
+              <span className="font-mono">{grade.course_id}</span> for{' '}
+              <span className="font-mono">{grade.student_id}</span> — {grade.score}. This is
+              already on their academic record.
+            </span>
+          )}
+          footNote="Submitting as yourself. A grade cannot be submitted on another lecturer's behalf."
         >
-          <option value="">— Choose a section —</option>
-          {sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.course_code} — {s.course_title} ({s.semester})
-            </option>
-          ))}
-        </select>
-      </div>
+          <Select
+            label="Course"
+            required
+            {...bind('assignment')}
+            hint="Only the courses you are assigned to. The server checks this again."
+          >
+            <option value="">Select a course…</option>
+            {assignments.map((assignment) => (
+              <option
+                key={`${assignment.course_id}-${assignment.session_id}`}
+                value={`${assignment.course_id}@@${assignment.session_id}`}
+              >
+                {assignment.course_id} — {assignment.session_id}
+              </option>
+            ))}
+          </Select>
 
-      {sectionId ? (
-        <Table
-          columns={columns}
-          data={enrollments}
-          isLoading={isLoading}
-          emptyMessage="No students enrolled in this section."
-        />
-      ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Select a section above to manage grades.
-        </p>
-      )}
-    </div>
+          <FieldRow>
+            <Input
+              label="Student"
+              required
+              placeholder="260591001"
+              {...bind('student_id')}
+              hint="Their matric number."
+            />
+            <Input
+              label="Semester"
+              required
+              placeholder="sem-2026-1"
+              {...bind('semester_id')}
+            />
+          </FieldRow>
+
+          <Input
+            label="Score"
+            type="number"
+            min={0}
+            max={100}
+            required
+            {...bind('score')}
+            hint="The raw mark. The letter and grade point are derived by the grading scale."
+          />
+        </FormCard>
+
+        <div className="space-y-4">
+          <Note tone="warning" title="A submitted grade is final">
+            Once recorded it cannot be resubmitted with a different score. Changing it is a
+            correction, which the registry makes and which leaves an audit entry naming a reason
+            and an authoriser.
+          </Note>
+          <Note tone="info" title="It takes effect immediately">
+            Academic Records consumes the submission before this request returns. There is no
+            queue and no delay — the CGPA changes as soon as you see the confirmation.
+          </Note>
+          {assignments.length === 0 && (
+            <Note tone="danger" title="You have no course assignments">
+              Every submission will be refused until your department assigns you a course.
+            </Note>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
