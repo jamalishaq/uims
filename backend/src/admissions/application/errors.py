@@ -46,6 +46,15 @@ class ProgramNotFoundError(ApplicationError):
     """Faculty & Department does not recognise the program an application names."""
 
 
+class UnknownApplicationStatusError(ApplicationError):
+    """A caller filtered a list by a status this context does not have.
+
+    An error rather than an empty result, because the two would be indistinguishable to
+    whoever asked. A registrar filtering their working list by a mistyped status and being
+    shown nobody would reasonably conclude there is nobody to work on.
+    """
+
+
 class ProgramNotAdmittingError(ApplicationError):
     """The program exists but is not taking applications for that session.
 

@@ -15,6 +15,7 @@ same argument at length.
 from dataclasses import dataclass
 from datetime import date
 
+from admissions.application.summarise_program_admissions import ProgramAdmissionsSummary
 from admissions.domain.admission_cycle import AdmissionCycle
 from admissions.domain.alternative_program_policy import AlternativeProgramPolicy
 from admissions.domain.applicant import Applicant
@@ -151,3 +152,32 @@ class AlternativeProgramPolicyView:
             session_id=policy.session_id,
             alternatives=policy.alternatives,
         )
+
+
+@dataclass(frozen=True)
+class ProgramAdmissionsSummaryView:
+    """One program's capacity and one program's cohort, flat.
+
+    The capacity fields are ``None`` when no cycle has been opened, which is a real state
+    rather than a missing one — a registrar who published a requirement but has not yet set a
+    quota — and reporting it as zero would say the program is full.
+    """
+
+    program_id: str
+    session_id: str
+    quota: int | None
+    offers_made: int | None
+    places_remaining: int | None
+    is_full: bool | None
+    applied: int
+    screened: int
+    offered: int
+    accepted: int
+    declined: int
+    matriculated: int
+    no_offer_available: int
+    total_applicants: int
+
+    @classmethod
+    def of(cls, summary: ProgramAdmissionsSummary) -> "ProgramAdmissionsSummaryView":
+        return cls(**vars(summary))

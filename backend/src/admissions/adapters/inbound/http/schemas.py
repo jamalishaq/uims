@@ -25,6 +25,7 @@ from admissions.application.views import (
     AdmissionCycleView,
     AlternativeProgramPolicyView,
     ApplicantView,
+    ProgramAdmissionsSummaryView,
     ProgramEntryRequirementView,
     UtmeSubjectScoreView,
 )
@@ -297,4 +298,43 @@ class AlternativeProgramPolicyResponse(BaseModel):
 
     @classmethod
     def of(cls, view: AlternativeProgramPolicyView) -> "AlternativeProgramPolicyResponse":
+        return cls(**vars(view))
+
+
+class ApplicantListResponse(BaseModel):
+    """The applicants for one program. An empty list is a normal answer."""
+
+    applicants: tuple[ApplicantResponse, ...]
+
+
+class ProgramAdmissionsSummaryResponse(BaseModel):
+    """A registrar's view of one program: capacity above, cohort below.
+
+    **The two halves count different populations and will not reconcile.** ``offers_made``
+    counts places claimed *on this program*, including by applicants who applied elsewhere and
+    overflowed here through another program's fallback chain. The funnel counts applicants who
+    *applied to* this program, including ones offered a place somewhere else. Both are needed
+    and neither is the other.
+
+    The capacity fields are ``null`` when no cycle has been opened — a real state, and one that
+    reporting as zero would render as "full".
+    """
+
+    program_id: str
+    session_id: str
+    quota: int | None
+    offers_made: int | None
+    places_remaining: int | None
+    is_full: bool | None
+    applied: int
+    screened: int
+    offered: int
+    accepted: int
+    declined: int
+    matriculated: int
+    no_offer_available: int
+    total_applicants: int
+
+    @classmethod
+    def of(cls, view: ProgramAdmissionsSummaryView) -> "ProgramAdmissionsSummaryResponse":
         return cls(**vars(view))

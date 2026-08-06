@@ -62,14 +62,21 @@ from admissions.adapters.outbound.postgres import (
 )
 from admissions.application.accept_offer import AcceptOffer
 from admissions.application.decline_offer import DeclineOffer
+from admissions.application.list_program_applicants import ListProgramApplicants
 from admissions.application.make_offer_to_applicant import MakeOfferToApplicant
 from admissions.application.matriculate_applicant import MatriculateApplicant
 from admissions.application.open_admission_cycle import OpenAdmissionCycle
 from admissions.application.publish_alternative_policy import PublishAlternativePolicy
 from admissions.application.publish_entry_requirement import PublishEntryRequirement
+from admissions.application.read_policy import (
+    ReadAdmissionCycle,
+    ReadAlternativePolicy,
+    ReadEntryRequirement,
+)
 from admissions.application.record_acceptance_fee_paid import RecordAcceptanceFeePaid
 from admissions.application.screen_applicant import ScreenApplicant
 from admissions.application.submit_application import SubmitApplication
+from admissions.application.summarise_program_admissions import SummariseProgramAdmissions
 from billing.adapters.inbound import (
     OFFER_ACCEPTED,
     SESSION_OPENED,
@@ -657,6 +664,11 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
             open_admission_cycle=OpenAdmissionCycle(cycles),
             publish_entry_requirement=PublishEntryRequirement(requirements),
             publish_alternative_policy=PublishAlternativePolicy(policies),
+            read_admission_cycle=ReadAdmissionCycle(cycles),
+            read_entry_requirement=ReadEntryRequirement(requirements),
+            read_alternative_policy=ReadAlternativePolicy(policies),
+            summarise_program_admissions=SummariseProgramAdmissions(applicants, cycles),
+            list_program_applicants=ListProgramApplicants(applicants),
         ),
     )
     setattr(
