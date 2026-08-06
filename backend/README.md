@@ -47,9 +47,35 @@ Every route is mounted under `/api/v1`, one router per context.
 
 ## Database
 
-There are no migrations yet. The schema is created by the test fixtures; a deployment needs
-`alembic` set up first, which is why startup deliberately does *not* run `create_all` — a
-process that built its own schema would make a half-migrated database look healthy.
+There are no migrations yet. The schema is created by the test fixtures and by the seeder
+below; a deployment needs `alembic` set up first, which is why startup deliberately does *not*
+run `create_all` — a process that built its own schema would make a half-migrated database
+look healthy.
+
+## Seed data
+
+```bash
+docker compose up -d db
+uv run python scripts/seed.py --reset
+```
+
+`scripts/seed.py` writes one small demo university across all seven contexts — faculties,
+courses, a session, applicants in every state of the admissions machine, students with real
+matric numbers, registrations, transcripts and ledgers — so the read routes have something to
+return. It writes through aggregates and repositories, never raw SQL, and it prints the
+`DEPARTMENT_NUMERIC_CODES` line to put in `.env`.
+
+Two things to know before relying on it:
+
+- **Every value it writes is an invented demo fixture**, not an institutional fact. Fee
+  amounts, quotas, entry requirements and three of the four numeric department codes were made
+  up for the script and are marked as such in it. `CSC → 0591` is the one real entry.
+- **`--reset` truncates every table**, and so does the Postgres test suite's `clean_database`
+  fixture. Running `UMS_TEST_BACKEND=postgres uv run pytest` empties the database the seeder
+  filled; re-seed afterwards.
+
+It lives outside `src/` on purpose: a module that touches all seven contexts would violate rule
+(b) of the fitness test, which exempts `src/main.py` alone and by exact name.
 
 ## Tests
 
