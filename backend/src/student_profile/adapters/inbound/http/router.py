@@ -27,6 +27,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+import security
 from http_api import dependencies_of, error_responses
 from student_profile.adapters.inbound.http.schemas import (
     CorrectStudentBioDataRequest,
@@ -76,14 +77,23 @@ router = APIRouter(prefix="/student-profile", tags=["student-profile"])
     status_code=status.HTTP_201_CREATED,
     response_model=StudentResponse,
     summary="Register a student, issuing their matric number",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
-async def register_new_student(body: RegisterNewStudentRequest, deps: Deps) -> StudentResponse:
+async def register_new_student(
+    body: RegisterNewStudentRequest, principal: security.Department, deps: Deps
+) -> StudentResponse:
     """Create the student and issue their matric number in one operation.
 
     The number is not in the request and cannot be: it is composed from the department's code
     and the entry year, against a counter that survives restarts precisely so two students
     never share one.
+
+    Guarded to a department registrar or the university. There is **no scope check on the
+    programme**: it would mean resolving programme → department, which is a cross-context
+    lookup this context cannot make (``auth.md`` records the same gap across Admissions). A
+    registrar can therefore register a student against another department's programme, and the
+    matric number they get would carry that department's code — which is the visible symptom if
+    it ever happens.
     """
     student = await deps.register_new_student.execute(
         RegisterNewStudentCommand(**body.model_dump())
@@ -95,10 +105,19 @@ async def register_new_student(body: RegisterNewStudentRequest, deps: Deps) -> S
     "/students/{student_id}",
     response_model=StudentResponse,
     summary="Read a student",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def read_student(student_id: str, deps: Deps) -> StudentResponse:
-    """By this context's own identifier — the one every other context references."""
+async def read_student(
+    student_id: str, principal: security.Authenticated, deps: Deps
+) -> StudentResponse:
+    """By this context's own identifier — the one every other context references.
+
+    A student reads themselves; a registrar reads anybody. ``require_owner`` matches against
+    the token's subject *and* its login id, because a student's login id is their matric number
+    and their subject is the ``student_id`` this context minted — a caller may legitimately
+    hold either.
+    """
+    principal.require_owner(student_id)
     student = await deps.read_student.find(student_id)
     if student is None:
         raise HTTPException(
@@ -112,9 +131,10 @@ async def read_student(student_id: str, deps: Deps) -> StudentResponse:
     "/students",
     response_model=StudentResponse,
     summary="Find a student by matric number or applicant id",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def find_student(
+    principal: security.Authenticated,
     deps: Deps,
     matric_number: Annotated[str | None, Query(description="The number on their ID card.")] = None,
     applicant_id: Annotated[
@@ -128,12 +148,23 @@ async def find_student(
 
     A matric number that is not a matric number at all is a 404 rather than a 422 — somebody
     typed a number into a lookup box, and "no student with that number" is the honest answer.
+
+    The scope check runs **before** the lookup, against the identifier in the query rather than
+    against the student it finds. Checking afterwards would answer 403 for somebody else's
+    number and 404 for a number nobody holds, and the difference between those two answers is
+    a way to test whether a matric number is real without being allowed to see it.
+
+    One consequence, stated rather than left to be found: a *student* searching by their own
+    ``applicant_id`` is refused, because a token carries the student id and the matric number
+    and has never heard of an applicant id. Registrars, who are who this lookup is for, are
+    unaffected.
     """
     if (matric_number is None) == (applicant_id is None):
         raise HTTPException(
             status_code=422, detail="give exactly one of matric_number or applicant_id"
         )
 
+    principal.require_owner(matric_number, applicant_id)
     student = (
         await deps.read_student.find_by_matric_number(matric_number)
         if matric_number is not None
@@ -150,10 +181,13 @@ async def find_student(
     "/students/{student_id}/bio-data",
     response_model=StudentResponse,
     summary="Correct a student's bio-data",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def correct_student_bio_data(
-    student_id: str, body: CorrectStudentBioDataRequest, deps: Deps
+    student_id: str,
+    body: CorrectStudentBioDataRequest,
+    principal: security.Staff,
+    deps: Deps,
 ) -> StudentResponse:
     """Fix what the university got wrong about a person.
 

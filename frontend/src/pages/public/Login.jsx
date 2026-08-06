@@ -1,135 +1,144 @@
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useMutation } from '@tanstack/react-query'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { jwtDecode } from 'jwt-decode'
-import toast from 'react-hot-toast'
-import { login } from '../../features/auth/queries'
-import useAuthStore from '../../store/authStore'
-import { ROLE_HOME } from '../../config/roles'
-import Input from '../../components/ui/Input'
+import { useEffect, useState } from 'react'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { GraduationCap } from 'lucide-react'
 import Button from '../../components/ui/Button'
+import Input from '../../components/ui/Input'
+import { ErrorNote } from '../../components/ui/Feedback'
+import { useSignIn } from '../../features/auth/queries'
+import useAuth from '../../hooks/useAuth'
 import useTitle from '../../hooks/useTitle'
+import { ROLE_HOME } from '../../config/roles'
 
-const schema = z.object({
-  email:      z.string().email('Enter a valid email'),
-  password:   z.string().min(1, 'Password is required'),
-  rememberMe: z.boolean(),
-})
-
-const DEMO_ROLES = [
-  { label: 'Super Admin', email: 'admin@school.edu', password: 'admin123' },
-  { label: 'Registrar',   email: 'registrar@school.edu',  password: 'registrar123'  },
-  { label: 'Bursar',      email: 'bursar@school.edu',     password: 'bursar123'     },
-  { label: 'Dean',        email: 'dean@school.edu',       password: 'dean123'       },
-  { label: 'HOD',         email: 'hod@school.edu',        password: 'hod123'        },
-  { label: 'Lecturer',    email: 'lecturer@school.edu',   password: 'lecturer123'   },
-  { label: 'Student',     email: 'student@school.edu',    password: 'student123'    },
-  { label: 'Applicant',   email: 'applicant@school.edu',  password: 'applicant123'  },
-  { label: 'Alumni',      email: 'alumni@school.edu',     password: 'alumni123'     },
-]
-
+/**
+ * One form for all five levels.
+ *
+ * There is deliberately **no role picker**. The server decides what a login id is: the token it
+ * issues carries the role, and asking somebody to choose one first would let them pick wrong
+ * and be told "invalid credentials" for a password that was perfectly correct. A student types
+ * their matric number, everybody else the id the system minted for them, and the same field
+ * takes both.
+ */
 export default function Login() {
   useTitle('Sign in')
   const navigate = useNavigate()
   const location = useLocation()
-  const setToken = useAuthStore((s) => s.setToken)
-  const setRememberMe = useAuthStore((s) => s.setRememberMe)
+  const { isSignedIn, role } = useAuth()
+  const { mutate: signIn, isPending, error, reset } = useSignIn()
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', rememberMe: false },
-  })
+  const [loginId, setLoginId] = useState('')
+  const [password, setPassword] = useState('')
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: login,
-    onSuccess: (data, variables) => {
-      setRememberMe(variables.rememberMe)
-      setToken(data.access_token)
-      const { role } = jwtDecode(data.access_token)
-      const from = location.state?.from?.pathname
-      navigate(from ?? ROLE_HOME[role?.toLowerCase()] ?? '/login', { replace: true })
-    },
-    onError: () => toast.error('Invalid email or password'),
-  })
+  // Clear a stale refusal as soon as they change something, so the message belongs to what is
+  // currently in the boxes rather than to an attempt two edits ago.
+  useEffect(() => {
+    if (error) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginId, password])
+
+  if (isSignedIn && role) {
+    return <Navigate to={ROLE_HOME[role] ?? '/'} replace />
+  }
+
+  const submit = (event) => {
+    event.preventDefault()
+    signIn(
+      { loginId: loginId.trim(), password },
+      {
+        onSuccess: (session) => {
+          const home = ROLE_HOME[session.principal.role] ?? '/'
+          navigate(location.state?.from?.pathname ?? home, { replace: true })
+        },
+      }
+    )
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
-      <div className="w-full max-w-sm">
-        {/* Brand */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 mb-4">
-            <span className="text-white font-bold text-lg">U</span>
+    <div className="grid min-h-dvh lg:grid-cols-2">
+      {/* The panel exists to make the login page feel like part of a university rather than a
+          bare form, and it is hidden below `lg` — on a phone it would push the fields under
+          the fold, which is the one thing a login page must never do. */}
+      <div className="relative hidden overflow-hidden bg-ink-950 lg:block">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-800/40 via-ink-950 to-ink-950" />
+        <div className="relative flex h-full flex-col justify-between p-12">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600">
+              <GraduationCap size={20} className="text-white" aria-hidden="true" />
+            </div>
+            <span className="text-lg font-semibold tracking-tight text-white">University MS</span>
           </div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Sign in</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            University Management System
+          <div className="max-w-md">
+            <h2 className="text-3xl font-semibold leading-tight tracking-tight text-white">
+              Admissions, records, registration and fees.
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-ink-400">
+              One system, from an application through matriculation to a transcript. Sign in at
+              your own level — university, faculty, department, lecturer or student.
+            </p>
+          </div>
+          <p className="text-xs text-ink-600">
+            Applying for admission?{' '}
+            <Link to="/apply" className="text-ink-400 underline underline-offset-4">
+              You do not need an account.
+            </Link>
           </p>
         </div>
+      </div>
 
-        {/* Form */}
-        {false && (
-        <form
-          onSubmit={handleSubmit((v) => mutate(v))}
-          className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4"
-        >
-          <Input
-            label="Email"
-            type="email"
-            placeholder="you@university.edu"
-            error={errors.email?.message}
-            autoComplete="email"
-            {...register('email')}
-          />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            error={errors.password?.message}
-            autoComplete="current-password"
-            {...register('password')}
-          />
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="rounded border-slate-300 dark:border-slate-600 text-indigo-600"
-              {...register('rememberMe')}
-            />
-            Remember me
-          </label>
-          <Button type="submit" className="w-full" loading={isPending}>
+      <div className="flex items-center justify-center bg-white px-6 py-12 dark:bg-ink-950">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 lg:hidden">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-600">
+              <GraduationCap size={20} className="text-white" aria-hidden="true" />
+            </div>
+          </div>
+
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-900 dark:text-ink-50">
             Sign in
-          </Button>
-        </form>
-        )}
-
-        {/* Demo logins */}
-        <div className="mt-6 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-4">
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3 text-center">
-            Demo accounts
+          </h1>
+          <p className="mt-1.5 text-sm text-ink-500 dark:text-ink-400">
+            Students sign in with their matric number. Staff and offices use the id issued to
+            them.
           </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {DEMO_ROLES.map(({ label, email, password }) => (
-              <button
-                key={email}
-                type="button"
-                disabled={isPending}
-                onClick={() => mutate({ email, password, rememberMe: false })}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Login as {label}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-          Applying for admission?{' '}
-          <a href="/apply" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-            Apply here
-          </a>
-        </p>
+          <form onSubmit={submit} className="mt-8 space-y-4">
+            <Input
+              label="Matric number or id"
+              name="login_id"
+              autoComplete="username"
+              autoFocus
+              required
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              placeholder="260591001"
+            />
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+
+            {/* One message for every refusal, because the server sends one: an unknown id and a
+                wrong password are deliberately indistinguishable, so that nobody can sort
+                guessed matric numbers into real and unreal. */}
+            <ErrorNote error={error} title="Could not sign you in" />
+
+            <Button type="submit" size="lg" loading={isPending} className="w-full">
+              Sign in
+            </Button>
+          </form>
+
+          <p className="mt-6 text-xs leading-relaxed text-ink-500 dark:text-ink-400">
+            Applying for admission? The{' '}
+            <Link to="/apply" className="font-medium text-brand-600 dark:text-brand-400">
+              application form
+            </Link>{' '}
+            is open to everyone and needs no account.
+          </p>
+        </div>
       </div>
     </div>
   )

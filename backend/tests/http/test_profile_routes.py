@@ -156,7 +156,7 @@ class TestTheStaffRecord:
 
 class TestCourseAssignments:
     async def test_assigning_a_course_makes_grade_submission_reachable(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """The whole reason assignments matter: ``SubmitGrade`` authorizes against exactly this.
 
@@ -190,6 +190,7 @@ class TestCourseAssignments:
                 "semester_id": "sem-1",
                 "score": 68,
             },
+            headers=as_lecturer("lec-1"),
         )
 
         assert assigned.status_code == 201, assigned.text

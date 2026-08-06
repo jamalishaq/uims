@@ -13,46 +13,44 @@ export default function UserLayout() {
   const hasBottomNav = BOTTOM_NAV_ROLES.includes(role)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Desktop / tablet sidebar */}
-      <div className="hidden md:flex shrink-0">
-        <Sidebar role={role} collapsed={collapsed} />
+    <div className="flex h-dvh overflow-hidden bg-ink-100 dark:bg-ink-950">
+      <div className="hidden shrink-0 md:flex">
+        <Sidebar collapsed={collapsed} />
       </div>
 
-      {/* Mobile drawer backdrop */}
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/50 md:hidden"
+          className="fixed inset-0 z-20 bg-ink-950/60 md:hidden"
           onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* Mobile drawer */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 md:hidden transition-transform duration-200 ${
+        className={`fixed inset-y-0 left-0 z-30 transition-transform duration-200 md:hidden ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar role={role} onClose={() => setDrawerOpen(false)} />
+        <Sidebar onClose={() => setDrawerOpen(false)} />
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           onMenuClick={() => setDrawerOpen(true)}
           collapsed={collapsed}
           onCollapseClick={() => setCollapsed((c) => !c)}
         />
         <main
-          className={`flex-1 overflow-y-auto p-4 md:p-6 ${
-            hasBottomNav ? 'pb-20 md:pb-6' : ''
-          }`}
+          className={`flex-1 overflow-y-auto p-4 md:p-6 ${hasBottomNav ? 'pb-24 md:pb-6' : ''}`}
         >
-          <Outlet />
+          {/* `max-w-6xl` rather than full bleed: these are forms and tables, and a line of text
+              or a two-column form stretched across a 32-inch monitor is unreadable. */}
+          <div className="mx-auto w-full max-w-6xl animate-fade-up">
+            <Outlet />
+          </div>
         </main>
       </div>
 
-      {/* Mobile bottom nav */}
       {hasBottomNav && <BottomNav role={role} />}
     </div>
   )

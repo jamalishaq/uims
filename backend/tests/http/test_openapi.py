@@ -74,6 +74,7 @@ def test_every_context_mounted_a_router(schema: dict) -> None:
     assert tags == {
         "academic-records",
         "admissions",
+        "auth",
         "billing",
         "course-catalog",
         "enrollment",
@@ -93,14 +94,30 @@ def test_the_route_walk_finds_them_all(app: FastAPI, schema: dict) -> None:
     assert len(api_routes(app)) == sum(len(methods) for methods in schema["paths"].values())
 
 
+NO_BODY_TO_DECLARE = frozenset({"/health", "/auth/logout"})
+"""The two routes with no response model, each for a stated reason.
+
+``/health`` returns an untyped dict and predates the rule. ``/auth/logout`` answers **204 No
+Content** — there is no body to describe, and a response model on it would document a shape the
+route is forbidden from sending. Named by exact path rather than skipped by status code, so a
+route that quietly stopped returning a model still has to be added here on purpose.
+"""
+
+
 def test_every_route_declares_a_response_model(app: FastAPI) -> None:
     """A route without one documents nothing and is free to change shape silently."""
     undeclared = [
         route.path
         for route in api_routes(app)
-        if route.path != "/health" and route.response_model is None
+        if route.path not in NO_BODY_TO_DECLARE and route.response_model is None
     ]
     assert undeclared == []
+
+
+def test_the_only_route_with_no_response_model_is_the_one_with_no_body(app: FastAPI) -> None:
+    """The exemption is a path, and this keeps it honest: 204 is why, so 204 it must be."""
+    logout = next(route for route in api_routes(app) if route.path == "/auth/logout")
+    assert logout.status_code == 204
 
 
 def test_no_schema_component_is_named_after_a_domain_type(schema: dict) -> None:

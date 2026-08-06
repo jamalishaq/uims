@@ -1,87 +1,62 @@
 import {
-  LayoutDashboard,
   BookOpen,
-  ClipboardList,
-  FileText,
-  GraduationCap,
-  CreditCard,
-  Users,
-  BarChart3,
-  CheckSquare,
-  DollarSign,
   Building2,
-  Calendar,
+  CalendarDays,
+  ClipboardCheck,
+  CreditCard,
+  GraduationCap,
+  KeyRound,
+  LayoutDashboard,
+  Layers,
   ScrollText,
-  List,
-  Library,
-  Home,
-  Award,
+  UserCog,
+  Users,
+  Wallet,
 } from 'lucide-react'
 
+/**
+ * One entry per page, and every page has an API route behind it.
+ *
+ * That is the whole rule this file is now written to, and it is why it is so much shorter than
+ * the one it replaces: the old nav listed attendance, assignments, exams, hostel, library and
+ * thesis for a student, and the API has never had a route for any of them.
+ *
+ * Ordering matters for `student` and `lecturer` — `BottomNav` shows the first four on mobile.
+ */
 export const NAV = {
-  // Bottom-nav order matters: BottomNav shows first 5
-  student: [
-    { label: 'Dashboard',   to: 'dashboard',   icon: LayoutDashboard },
-    { label: 'Courses',     to: 'courses',     icon: BookOpen },
-    { label: 'Enrollments', to: 'enrollments', icon: List },
-    { label: 'Grades',      to: 'grades',      icon: GraduationCap },
-    { label: 'Payments',    to: 'payments',    icon: CreditCard },
-    { label: 'Attendance',  to: 'attendance',  icon: CheckSquare },
-    { label: 'Assignments', to: 'assignments', icon: ClipboardList },
-    { label: 'Exams',       to: 'exams',       icon: FileText },
-    { label: 'Hostel',      to: 'hostel',      icon: Home },
-    { label: 'Library',     to: 'library',     icon: Library },
-    { label: 'Thesis',      to: 'thesis',      icon: Award },
+  university: [
+    { label: 'Overview', to: 'overview', icon: LayoutDashboard },
+    { label: 'Structure', to: 'structure', icon: Building2 },
+    { label: 'Sessions', to: 'sessions', icon: CalendarDays },
+    { label: 'Courses', to: 'courses', icon: BookOpen },
+    { label: 'Bursary', to: 'bursary', icon: Wallet },
+    { label: 'Credentials', to: 'credentials', icon: KeyRound },
   ],
 
-  applicant: [
-    { label: 'Dashboard', to: 'dashboard', icon: LayoutDashboard },
-    { label: 'Apply',     to: 'apply',     icon: FileText },
-    { label: 'My Status', to: 'status',    icon: CheckSquare },
+  faculty: [
+    { label: 'Overview', to: 'overview', icon: LayoutDashboard },
+    { label: 'Departments', to: 'departments', icon: Building2 },
+    { label: 'Offer chains', to: 'offer-chains', icon: Layers },
+  ],
+
+  department: [
+    { label: 'Overview', to: 'overview', icon: LayoutDashboard },
+    { label: 'Programmes', to: 'programmes', icon: Layers },
+    { label: 'Admissions', to: 'admissions', icon: ClipboardCheck },
+    { label: 'Lecturers', to: 'lecturers', icon: UserCog },
+    { label: 'Students', to: 'students', icon: Users },
   ],
 
   lecturer: [
-    { label: 'Dashboard',    to: 'dashboard',   icon: LayoutDashboard },
-    { label: 'My Sections',  to: 'sections',    icon: BookOpen },
-    { label: 'Attendance',   to: 'attendance',  icon: CheckSquare },
-    { label: 'Assignments',  to: 'assignments', icon: ClipboardList },
-    { label: 'Grades',       to: 'grades',      icon: GraduationCap },
+    { label: 'Overview', to: 'overview', icon: LayoutDashboard },
+    { label: 'My courses', to: 'courses', icon: BookOpen },
+    { label: 'Submit a grade', to: 'grades', icon: GraduationCap },
   ],
 
-  hod: [
-    { label: 'Dashboard',  to: 'dashboard',  icon: LayoutDashboard },
-    { label: 'Attendance', to: 'attendance', icon: CheckSquare },
-    { label: 'Reports',    to: 'reports',    icon: BarChart3 },
-  ],
-
-  dean: [
-    { label: 'Dashboard', to: 'dashboard', icon: LayoutDashboard },
-    { label: 'Overview',  to: 'overview',  icon: Building2 },
-    { label: 'Reports',   to: 'reports',   icon: BarChart3 },
-  ],
-
-  registrar: [
-    { label: 'Dashboard',    to: 'dashboard',    icon: LayoutDashboard },
-    { label: 'Applications', to: 'applications', icon: FileText },
-    { label: 'Students',     to: 'students',     icon: Users },
-  ],
-
-  bursar: [
-    { label: 'Dashboard',    to: 'dashboard', icon: LayoutDashboard },
-    { label: 'Fee Schedule', to: 'fees',      icon: DollarSign },
-    { label: 'Payments',     to: 'payments',  icon: CreditCard },
-  ],
-
-  super_admin: [
-    { label: 'Dashboard', to: 'dashboard', icon: LayoutDashboard },
-    { label: 'Structure', to: 'structure', icon: Building2 },
-    { label: 'Sessions',  to: 'sessions',  icon: Calendar },
-    { label: 'Courses',   to: 'courses',   icon: BookOpen },
-    { label: 'Users',     to: 'users',     icon: Users },
-  ],
-
-  alumni: [
-    { label: 'Dashboard',  to: 'dashboard',  icon: LayoutDashboard },
+  student: [
+    { label: 'Overview', to: 'overview', icon: LayoutDashboard },
+    { label: 'Registration', to: 'registration', icon: BookOpen },
     { label: 'Transcript', to: 'transcript', icon: ScrollText },
+    { label: 'Fees', to: 'fees', icon: CreditCard },
   ],
 }

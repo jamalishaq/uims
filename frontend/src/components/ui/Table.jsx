@@ -44,7 +44,7 @@ export default function Table({
     const end = Math.min(page * per_page, total)
 
     paginationBar = (
-      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
+      <div className="flex items-center justify-between px-4 py-3 border-t border-ink-200 dark:border-ink-800 text-sm text-ink-600 dark:text-ink-400">
         <span>
           Showing {start}–{end} of {total}
         </span>
@@ -72,10 +72,13 @@ export default function Table({
 
   return (
     <div
-      className={`rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden ${className}`}
+      className={`overflow-hidden rounded-xl border border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-900 ${className}`}
     >
-      <table className="w-full text-sm border-collapse">
-        <thead className="bg-slate-50 dark:bg-slate-800/60">
+      {/* The table scrolls inside this box. A wide column set must never make the page itself
+          scroll sideways — on a phone that moves the nav off screen. */}
+      <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead className="bg-ink-50 dark:bg-ink-800/60">
           {headerGroups.map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
@@ -85,9 +88,9 @@ export default function Table({
                 return (
                   <th
                     key={header.id}
-                    className={`px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap${
+                    className={`px-4 py-3 text-left text-xs font-medium text-ink-500 dark:text-ink-400 uppercase tracking-wide whitespace-nowrap${
                       canSort
-                        ? ' cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200'
+                        ? ' cursor-pointer select-none hover:text-ink-700 dark:hover:text-ink-200'
                         : ''
                     }`}
                     onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
@@ -111,11 +114,11 @@ export default function Table({
             ? Array.from({ length: SKELETON_ROWS }).map((_, rowIdx) => (
                 <tr
                   key={rowIdx}
-                  className="border-t border-slate-200 dark:border-slate-700"
+                  className="border-t border-ink-200 dark:border-ink-800"
                 >
                   {headerGroups[0]?.headers.map((header) => (
                     <td key={header.id} className="px-4 py-3">
-                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                      <div className="h-4 rounded bg-ink-200 dark:bg-ink-800 animate-pulse" />
                     </td>
                   ))}
                 </tr>
@@ -123,12 +126,12 @@ export default function Table({
             : rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors duration-150"
+                  className="border-t border-ink-200 dark:border-ink-800 hover:bg-ink-50 dark:hover:bg-ink-800/40 transition-colors duration-150"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-4 py-3 text-slate-700 dark:text-slate-300"
+                      className="px-4 py-3 text-ink-700 dark:text-ink-300"
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
@@ -137,6 +140,7 @@ export default function Table({
               ))}
         </tbody>
       </table>
+      </div>
 
       {!isLoading && data.length === 0 && (
         <EmptyState title={emptyMessage} />

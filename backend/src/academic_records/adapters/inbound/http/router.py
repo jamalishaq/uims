@@ -15,6 +15,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
 
+import security
 from academic_records.adapters.inbound.http.schemas import (
     AcademicRecordResponse,
     CorrectGradeRequest,
@@ -54,15 +55,24 @@ router = APIRouter(prefix="/academic-records", tags=["academic-records"])
     "/records/{student_id}",
     response_model=AcademicRecordResponse,
     summary="Read a student's academic record",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def read_academic_record(student_id: str, deps: Deps) -> AcademicRecordResponse:
+async def read_academic_record(
+    student_id: str, principal: security.Authenticated, deps: Deps
+) -> AcademicRecordResponse:
     """The whole transcript, its GPAs, its CGPA and the standing that follows from it.
 
     ``execute`` rather than ``find``: over HTTP, a student with no record is a 404, and the
     ``None``-returning variant exists for the cross-context adapter that needs the absence as
     a value rather than as a status.
+
+    **A student reads their own transcript and nobody else's.** A registrar reads anybody's.
+    A *lecturer* reads nobody's through this route, which is the one worth defending: a
+    lecturer's authority in this system is over a course they are assigned to, and a whole
+    transcript is every course a student has ever taken. Submitting a grade needs no sight of
+    one, and ``GradeSubmission`` never asks for it.
     """
+    principal.require_owner(student_id)
     record = await deps.read_academic_record.execute(student_id)
     return AcademicRecordResponse.of(AcademicRecordView.of(record))
 
@@ -72,15 +82,28 @@ async def read_academic_record(student_id: str, deps: Deps) -> AcademicRecordRes
     status_code=status.HTTP_201_CREATED,
     response_model=GradeCorrectedResponse,
     summary="Correct a recorded grade",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
 async def correct_grade(
-    student_id: str, body: CorrectGradeRequest, deps: Deps
+    student_id: str,
+    body: CorrectGradeRequest,
+    principal: security.Staff,
+    deps: Deps,
 ) -> GradeCorrectedResponse:
     """Change a mark already recorded, leaving an audit entry behind.
 
     The only route in this context that can alter a transcript. It appends rather than
     overwrites: the previous score, the reason and the authoriser stay on the record.
+
+    **Administrative, and deliberately not the lecturer's.** Submitting a grade is a lecturer
+    acting on their own course; changing one already recorded is the registry overriding what
+    was recorded, and the aggregate demands a reason and an authoriser precisely because the
+    two are different acts. A lecturer who could reach this route could rewrite their own
+    submission with no second party involved, which is the audit entry doing nothing.
+
+    The ``authorised_by`` in the body is **not** replaced with the token's principal. It names
+    who authorised the correction inside the university, which is not always who typed it, and
+    a route that silently overwrote it would make the audit trail a record of data entry.
     """
     corrected = await deps.correct_grade.execute(
         CorrectGradeCommand(student_id=student_id, **body.model_dump())

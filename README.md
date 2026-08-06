@@ -85,6 +85,27 @@ sms/
 
 ## Getting Started
 
+### Docker — the whole stack
+
+```bash
+cp backend/.env.example backend/.env
+docker compose up
+docker compose run --rm backend python scripts/seed.py --reset   # once per pgdata volume
+```
+
+Postgres on `:5432`, the API on `:8000` (docs at `/docs`), the frontend on `:5173`. Both
+application services bind-mount their source and reload on save, so this is the development
+stack and not a deployment. `backend/.env` must exist before `up` — compose reads it for
+`JWT_SECRET_KEY`, `PAYSTACK_SECRET_KEY` and `DEPARTMENT_NUMERIC_CODES`, and the API refuses to
+start naming whichever is missing.
+
+The seeder is a one-time step: `pgdata` is a named volume that survives `docker compose down`.
+It is also the *only* thing that creates the schema — there are no Alembic revisions in this
+repository yet — so a `down -v` means seeding again before any route can answer.
+
+Details, and the Windows-specific parts, in [backend/README.md](backend/README.md) and
+[frontend/README.md](frontend/README.md).
+
 ### Prerequisites
 
 - Python 3.11+
