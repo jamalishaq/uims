@@ -1,91 +1,64 @@
-import { renderHook } from '@testing-library/react'
-import { act } from 'react'
+import { renderHook } from '../../test-utils'
 import useAuth from '../../hooks/useAuth'
 import useAuthStore from '../../store/authStore'
 
-vi.mock('jwt-decode', () => ({
-  jwtDecode: vi.fn(),
-}))
-
-import { jwtDecode } from 'jwt-decode'
-
-const makeToken = (payload) => {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-  const body = btoa(JSON.stringify(payload))
-  return `${header}.${body}.fakesig`
-}
+/**
+ * `useAuth` reads the stored principal. It no longer decodes anything.
+ *
+ * `scopeId` is the field worth testing: pages use it to fill in the path parameter the API
+ * expects, which is why a student's transcript is fetched from `/records/{scopeId}` and not from
+ * a `/records/me` route that does not exist.
+ */
+const principal = (overrides = {}) => ({
+  principal_id: 'stu-1',
+  login_id: '260591001',
+  role: 'student',
+  scope_kind: 'student',
+  scope_id: 'stu-1',
+  is_active: true,
+  ...overrides,
+})
 
 beforeEach(() => {
-  useAuthStore.setState({ token: null, rememberMe: false })
-  vi.clearAllMocks()
+  useAuthStore.setState({ accessToken: null, principal: null })
 })
 
 describe('useAuth', () => {
-  it('returns empty object when no token', () => {
+  it('reports nobody signed in when there is no principal', () => {
     const { result } = renderHook(() => useAuth())
-    expect(result.current).toEqual({})
+    expect(result.current.isSignedIn).toBe(false)
+    expect(result.current.role).toBeNull()
+    expect(result.current.scopeId).toBeNull()
   })
 
-  it('decodes JWT and returns payload', () => {
-    const payload = { username: 'alice', role: 'student', user_id: 1 }
-    const token = makeToken(payload)
-    jwtDecode.mockReturnValue(payload)
-
-    act(() => {
-      useAuthStore.setState({ token })
-    })
-
+  it('exposes the principal the server sent', () => {
+    useAuthStore.setState({ accessToken: 'a.b.c', principal: principal() })
     const { result } = renderHook(() => useAuth())
-    expect(result.current).toEqual(payload)
-    expect(jwtDecode).toHaveBeenCalledWith(token)
-  })
 
-  it('returns username and role from token', () => {
-    const payload = { username: 'testuser', role: 'student', user_id: 42 }
-    const token = makeToken(payload)
-    jwtDecode.mockReturnValue(payload)
-
-    act(() => {
-      useAuthStore.setState({ token })
-    })
-
-    const { result } = renderHook(() => useAuth())
-    expect(result.current.username).toBe('testuser')
+    expect(result.current.isSignedIn).toBe(true)
     expect(result.current.role).toBe('student')
+    expect(result.current.principalId).toBe('stu-1')
+    expect(result.current.scopeId).toBe('stu-1')
   })
 
-  it('updates when token changes', () => {
-    const firstPayload = { username: 'alice', role: 'student' }
-    const secondPayload = { username: 'bob', role: 'lecturer' }
-    const firstToken = makeToken(firstPayload)
-    const secondToken = makeToken(secondPayload)
-
-    jwtDecode.mockReturnValueOnce(firstPayload).mockReturnValueOnce(secondPayload)
-
-    act(() => {
-      useAuthStore.setState({ token: firstToken })
-    })
-
+  it('keeps the login id separate from the principal id', () => {
+    // For a student these genuinely differ — the login id is their matric number and the
+    // principal id is what Student Profile minted. Routes need one or the other depending on
+    // which context keys the record, so conflating them would break half of them.
+    useAuthStore.setState({ accessToken: 'a.b.c', principal: principal() })
     const { result } = renderHook(() => useAuth())
-    expect(result.current.username).toBe('alice')
 
-    act(() => {
-      useAuthStore.setState({ token: secondToken })
-    })
-
-    expect(result.current.username).toBe('bob')
+    expect(result.current.loginId).toBe('260591001')
+    expect(result.current.principalId).toBe('stu-1')
   })
 
-  it('returns empty object for invalid token', () => {
-    jwtDecode.mockImplementation(() => {
-      throw new Error('Invalid token')
-    })
-
-    act(() => {
-      useAuthStore.setState({ token: 'not.a.valid.jwt' })
-    })
-
+  it('reports a principal with no token as signed in but tokenless', () => {
+    // What a reload looks like before PersistLogin's refresh lands: the principal is persisted,
+    // the access token never is.
+    useAuthStore.setState({ accessToken: null, principal: principal() })
     const { result } = renderHook(() => useAuth())
-    expect(result.current).toEqual({})
+
+    expect(result.current.isSignedIn).toBe(true)
+    expect(result.current.hasToken).toBe(false)
   })
 })
