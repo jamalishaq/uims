@@ -1,59 +1,68 @@
-import { Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Bell } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { LogOut, Menu, Moon, PanelLeft, Sun, UserRound } from 'lucide-react'
 import useAuth from '../hooks/useAuth'
 import useThemeStore from '../store/themeStore'
+import { useSignOut } from '../features/auth/queries'
+import { ROLE_BASE, ROLE_LABEL } from '../config/roles'
 
 export default function Header({ onMenuClick, collapsed, onCollapseClick }) {
-  const { dark, toggle } = useThemeStore()
-  const { username, role } = useAuth()
-  const initials = username ? username.slice(0, 2).toUpperCase() : '?'
+  const { role, loginId, scopeId } = useAuth()
+  const { theme, toggle } = useThemeStore()
+  const { mutate: signOut, isPending } = useSignOut()
 
   return (
-    <header className="h-16 shrink-0 flex items-center gap-3 px-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-      {/* Mobile hamburger */}
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b border-ink-200 bg-white px-4 dark:border-ink-800 dark:bg-ink-900">
       <button
         onClick={onMenuClick}
-        className="md:hidden text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+        aria-label="Open navigation"
+        className="rounded-lg p-2 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 md:hidden"
       >
         <Menu size={20} />
       </button>
 
-      {/* Desktop collapse toggle */}
       <button
         onClick={onCollapseClick}
-        className="hidden md:block text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+        aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        className="hidden rounded-lg p-2 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 md:block"
       >
-        {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+        <PanelLeft size={18} />
       </button>
 
-      <div className="flex-1" />
+      <div className="ml-auto flex items-center gap-1">
+        <button
+          onClick={toggle}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          className="rounded-lg p-2 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
 
-      {/* Dark mode toggle */}
-      <button
-        onClick={toggle}
-        className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-        aria-label="Toggle dark mode"
-      >
-        {dark ? <Sun size={20} /> : <Moon size={20} />}
-      </button>
+        <Link
+          to={`${ROLE_BASE[role] ?? ''}/account`}
+          className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-ink-100 dark:hover:bg-ink-800"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+            <UserRound size={16} aria-hidden="true" />
+          </span>
+          <span className="hidden text-left sm:block">
+            <span className="block max-w-[12rem] truncate font-mono text-xs text-ink-900 dark:text-ink-100">
+              {loginId}
+            </span>
+            <span className="block text-xs text-ink-500">
+              {ROLE_LABEL[role]}
+              {scopeId && scopeId !== loginId ? ` · ${scopeId}` : ''}
+            </span>
+          </span>
+        </Link>
 
-      {/* Notifications */}
-      <button className="relative text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">
-        <Bell size={20} />
-      </button>
-
-      {/* User avatar */}
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-          {initials}
-        </div>
-        <div className="hidden sm:block">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">
-            {username ?? '—'}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
-            {role?.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) ?? ''}
-          </p>
-        </div>
+        <button
+          onClick={() => signOut()}
+          disabled={isPending}
+          aria-label="Sign out"
+          className="rounded-lg p-2 text-ink-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/50"
+        >
+          <LogOut size={18} />
+        </button>
       </div>
     </header>
   )

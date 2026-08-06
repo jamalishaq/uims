@@ -157,7 +157,7 @@ async def test_the_public_application_form_needs_no_token(
             "program_id": "prog-csc",
             "session_id": "sess-2026",
             "full_name": "Ada Lovelace",
-            "utme_subjects": [
+            "utme_scores": [
                 {"subject": "english", "score": 70},
                 {"subject": "mathematics", "score": 80},
                 {"subject": "physics", "score": 65},

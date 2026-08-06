@@ -1,4 +1,4 @@
-import { Route, Routes, Navigate } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { ROLES } from './config/roles'
 
 import AppLayout from './layouts/AppLayout'
@@ -6,184 +6,126 @@ import UserLayout from './layouts/UserLayout'
 import PersistLogin from './features/auth/PersistLogin'
 import RequireAuth from './features/auth/RequireAuth'
 
-// Public pages
+// Public
 import Login from './pages/public/Login'
 import Apply from './pages/public/Apply'
 import NotFound from './pages/public/NotFound'
 import Unauthorized from './pages/public/Unauthorized'
+import Landing from './pages/public/Landing'
 
-// Student pages
-import StudentDashboard from './pages/student/Dashboard'
-import StudentCourses from './pages/student/Courses'
-import StudentEnrollments from './pages/student/Enrollments'
-import StudentGrades from './pages/student/Grades'
-import StudentPayments from './pages/student/Payments'
-import StudentAttendance from './pages/student/Attendance'
-import StudentAssignments from './pages/student/Assignments'
-import StudentExams from './pages/student/Exams'
-import StudentHostel from './pages/student/Hostel'
-import StudentLibrary from './pages/student/Library'
-import StudentThesis from './pages/student/Thesis'
+// Shared
+import Account from './pages/shared/Account'
 
-// Applicant pages
-import ApplicantDashboard from './pages/applicant/Dashboard'
-import ApplicationForm from './pages/applicant/ApplicationForm'
-import ApplicationStatus from './pages/applicant/ApplicationStatus'
+// University
+import UniversityOverview from './pages/university/Overview'
+import Structure from './pages/university/Structure'
+import Sessions from './pages/university/Sessions'
+import Courses from './pages/university/Courses'
+import Bursary from './pages/university/Bursary'
+import Credentials from './pages/university/Credentials'
 
-// Lecturer pages
-import LecturerDashboard from './pages/lecturer/Dashboard'
-import LecturerSections from './pages/lecturer/Sections'
-import LecturerAttendance from './pages/lecturer/Attendance'
-import LecturerAssignments from './pages/lecturer/Assignments'
-import LecturerGrades from './pages/lecturer/Grades'
+// Faculty
+import FacultyOverview from './pages/faculty/Overview'
+import Departments from './pages/faculty/Departments'
+import OfferChains from './pages/faculty/OfferChains'
 
-// HOD pages
-import HODDashboard from './pages/hod/Dashboard'
-import HODAttendance from './pages/hod/Attendance'
-import HODReports from './pages/hod/Reports'
+// Department
+import DepartmentOverview from './pages/department/Overview'
+import Programmes from './pages/department/Programmes'
+import Admissions from './pages/department/Admissions'
+import Lecturers from './pages/department/Lecturers'
+import DepartmentStudents from './pages/department/Students'
 
-// Dean pages
-import DeanDashboard from './pages/dean/Dashboard'
-import DeanOverview from './pages/dean/Overview'
-import DeanReports from './pages/dean/Reports'
+// Lecturer
+import LecturerOverview from './pages/lecturer/Overview'
+import LecturerCourses from './pages/lecturer/Courses'
+import SubmitGrade from './pages/lecturer/Grades'
 
-// Registrar pages
-import RegistrarDashboard from './pages/registrar/Dashboard'
-import Applications from './pages/registrar/Applications'
-import Students from './pages/registrar/Students'
-import StudentDetail from './pages/registrar/StudentDetail'
+// Student
+import StudentOverview from './pages/student/Overview'
+import Registration from './pages/student/Registration'
+import Transcript from './pages/student/Transcript'
+import Fees from './pages/student/Fees'
 
-// Bursar pages
-import BursarDashboard from './pages/bursar/Dashboard'
-import BursarFees from './pages/bursar/Fees'
-import BursarPayments from './pages/bursar/Payments'
-
-// Super Admin pages
-import SuperAdminDashboard from './pages/super_admin/Dashboard'
-import AcademicStructure from './pages/super_admin/AcademicStructure'
-import Sessions from './pages/super_admin/Sessions'
-import AdminCourses from './pages/super_admin/Courses'
-import AdminUsers from './pages/super_admin/Users'
-
-// Alumni pages
-import AlumniDashboard from './pages/alumni/Dashboard'
-import AlumniTranscript from './pages/alumni/Transcript'
-
+/**
+ * Five role trees, and every page inside one has an API route behind it.
+ *
+ * The `RequireAuth` wrappers mirror the server's role gate rather than inventing a second
+ * policy — see that component on why it is not a security boundary. Where the server admits
+ * two roles to a route (a department registrar *or* the university above them), the tree
+ * admits both too, so a university principal can reach a department's screens without a second
+ * set of pages.
+ */
 export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        {/* Public */}
-        <Route index element={<Navigate to="/login" replace />} />
+        <Route index element={<Landing />} />
         <Route path="login" element={<Login />} />
         <Route path="apply" element={<Apply />} />
         <Route path="unauthorized" element={<Unauthorized />} />
 
-        {/* Authenticated */}
         <Route element={<PersistLogin />}>
-
-          {/* Student */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Student]} />}>
-            <Route path="student" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<StudentDashboard />} />
-              <Route path="courses"     element={<StudentCourses />} />
-              <Route path="enrollments" element={<StudentEnrollments />} />
-              <Route path="grades"      element={<StudentGrades />} />
-              <Route path="payments"    element={<StudentPayments />} />
-              <Route path="attendance"  element={<StudentAttendance />} />
-              <Route path="assignments" element={<StudentAssignments />} />
-              <Route path="exams"       element={<StudentExams />} />
-              <Route path="hostel"      element={<StudentHostel />} />
-              <Route path="library"     element={<StudentLibrary />} />
-              <Route path="thesis"      element={<StudentThesis />} />
+          {/* University */}
+          <Route element={<RequireAuth allowedRoles={[ROLES.University]} />}>
+            <Route path="university" element={<UserLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<UniversityOverview />} />
+              <Route path="structure" element={<Structure />} />
+              <Route path="sessions" element={<Sessions />} />
+              <Route path="courses" element={<Courses />} />
+              <Route path="bursary" element={<Bursary />} />
+              <Route path="credentials" element={<Credentials />} />
+              <Route path="account" element={<Account />} />
             </Route>
           </Route>
 
-          {/* Applicant */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Applicant]} />}>
-            <Route path="applicant" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<ApplicantDashboard />} />
-              <Route path="apply"     element={<ApplicationForm />} />
-              <Route path="status"    element={<ApplicationStatus />} />
+          {/* Faculty office */}
+          <Route element={<RequireAuth allowedRoles={[ROLES.Faculty, ROLES.University]} />}>
+            <Route path="faculty" element={<UserLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<FacultyOverview />} />
+              <Route path="departments" element={<Departments />} />
+              <Route path="offer-chains" element={<OfferChains />} />
+              <Route path="account" element={<Account />} />
+            </Route>
+          </Route>
+
+          {/* Department registry */}
+          <Route element={<RequireAuth allowedRoles={[ROLES.Department, ROLES.University]} />}>
+            <Route path="department" element={<UserLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<DepartmentOverview />} />
+              <Route path="programmes" element={<Programmes />} />
+              <Route path="admissions" element={<Admissions />} />
+              <Route path="lecturers" element={<Lecturers />} />
+              <Route path="students" element={<DepartmentStudents />} />
+              <Route path="account" element={<Account />} />
             </Route>
           </Route>
 
           {/* Lecturer */}
           <Route element={<RequireAuth allowedRoles={[ROLES.Lecturer]} />}>
             <Route path="lecturer" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"   element={<LecturerDashboard />} />
-              <Route path="sections"    element={<LecturerSections />} />
-              <Route path="attendance"  element={<LecturerAttendance />} />
-              <Route path="assignments" element={<LecturerAssignments />} />
-              <Route path="grades"      element={<LecturerGrades />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<LecturerOverview />} />
+              <Route path="courses" element={<LecturerCourses />} />
+              <Route path="grades" element={<SubmitGrade />} />
+              <Route path="account" element={<Account />} />
             </Route>
           </Route>
 
-          {/* HOD */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.HOD]} />}>
-            <Route path="hod" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"  element={<HODDashboard />} />
-              <Route path="attendance" element={<HODAttendance />} />
-              <Route path="reports"    element={<HODReports />} />
+          {/* Student */}
+          <Route element={<RequireAuth allowedRoles={[ROLES.Student, ROLES.University]} />}>
+            <Route path="student" element={<UserLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<StudentOverview />} />
+              <Route path="registration" element={<Registration />} />
+              <Route path="transcript" element={<Transcript />} />
+              <Route path="fees" element={<Fees />} />
+              <Route path="account" element={<Account />} />
             </Route>
           </Route>
-
-          {/* Dean */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Dean]} />}>
-            <Route path="dean" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<DeanDashboard />} />
-              <Route path="overview"  element={<DeanOverview />} />
-              <Route path="reports"   element={<DeanReports />} />
-            </Route>
-          </Route>
-
-          {/* Registrar */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Registrar]} />}>
-            <Route path="registrar" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"        element={<RegistrarDashboard />} />
-              <Route path="applications"     element={<Applications />} />
-              <Route path="students"         element={<Students />} />
-              <Route path="students/:studentId" element={<StudentDetail />} />
-            </Route>
-          </Route>
-
-          {/* Bursar */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Bursar]} />}>
-            <Route path="bursar" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<BursarDashboard />} />
-              <Route path="fees"      element={<BursarFees />} />
-              <Route path="payments"  element={<BursarPayments />} />
-            </Route>
-          </Route>
-
-          {/* Super Admin */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.SuperAdmin]} />}>
-            <Route path="admin" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<SuperAdminDashboard />} />
-              <Route path="structure" element={<AcademicStructure />} />
-              <Route path="sessions"  element={<Sessions />} />
-              <Route path="courses"   element={<AdminCourses />} />
-              <Route path="users"     element={<AdminUsers />} />
-            </Route>
-          </Route>
-
-          {/* Alumni */}
-          <Route element={<RequireAuth allowedRoles={[ROLES.Alumni]} />}>
-            <Route path="alumni" element={<UserLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard"  element={<AlumniDashboard />} />
-              <Route path="transcript" element={<AlumniTranscript />} />
-            </Route>
-          </Route>
-
         </Route>
 
         <Route path="*" element={<NotFound />} />
