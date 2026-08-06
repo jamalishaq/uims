@@ -1,7 +1,7 @@
 """Wiring for the HTTP tests: the real application, over whichever persistence is selected.
 
 This suite does something none of the others do — it builds the **whole system**. Every other
-conftest wires one context; ``src/main.py`` wires all seven, and these tests drive it through
+conftest wires one context; ``src/main.py`` wires all eight, and these tests drive it through
 an ASGI transport rather than calling use cases directly. What that buys is the only check that
 the composition root is right: a router pointed at the wrong container, a Protocol satisfied by
 an object with the wrong method name, or a subscription never made are all invisible to a
@@ -33,6 +33,11 @@ The real key is rotated and lives in the environment; that a test can pick its o
 benefit of the secret being a constructor argument rather than something ``src/`` reads.
 """
 
+JWT_SECRET = "a-test-signing-key-long-enough-for-hs256"
+"""Its own key, for ``WEBHOOK_SECRET``'s reason: the real one is rotated and lives in the
+environment, and that a test can pick its own is the whole benefit of it being a constructor
+argument rather than something ``src/`` reads."""
+
 DEPARTMENT_NUMERIC_CODES = '{"CSC": "0591"}'
 """One department, enough to issue a matric number.
 
@@ -52,6 +57,7 @@ def settings() -> main.Settings:
         {
             "DATABASE_URL": "postgresql+asyncpg://unused:unused@localhost:5432/unused",
             "PAYSTACK_SECRET_KEY": WEBHOOK_SECRET,
+            "JWT_SECRET_KEY": JWT_SECRET,
             "ALLOWED_ORIGINS": '["http://localhost:3000"]',
             "DEPARTMENT_NUMERIC_CODES": DEPARTMENT_NUMERIC_CODES,
         }

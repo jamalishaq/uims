@@ -30,6 +30,7 @@ from billing.adapters.outbound.postgres import metadata as billing_metadata
 from course_catalog.adapters.outbound.postgres import metadata as course_catalog_metadata
 from enrollment.adapters.outbound.postgres import metadata as enrollment_metadata
 from faculty_department.adapters.outbound.postgres import metadata as faculty_department_metadata
+from identity.adapters.outbound.postgres import metadata as identity_metadata
 from persistence import engine_for
 from student_profile.adapters.outbound.postgres import metadata as student_profile_metadata
 
@@ -46,12 +47,13 @@ ALL_METADATA = (
     course_catalog_metadata,
     enrollment_metadata,
     faculty_department_metadata,
+    identity_metadata,
     student_profile_metadata,
 )
 """One ``MetaData`` per context, each in a Postgres schema of its own name.
 
-Collected here and nowhere in ``src/``: a module that imported all seven would be a module
-importing six contexts it has no business knowing about. A composition root may; that is what
+Collected here and nowhere in ``src/``: a module that imported all eight would be a module
+importing seven contexts it has no business knowing about. A composition root may; that is what
 makes it one.
 """
 
@@ -80,7 +82,7 @@ def database_url() -> str:
 async def engine(backend: str, database_url: str) -> AsyncIterator[AsyncEngine]:
     """The engine every Postgres repository in the run shares, with the schema built.
 
-    Session-scoped: creating seven schemas and twenty-odd tables per test would dominate the
+    Session-scoped: creating eight schemas and twenty-odd tables per test would dominate the
     run, and the tables do not change between tests. What changes between tests is the rows,
     and :func:`clean_database` deals with those.
     """
@@ -275,6 +277,14 @@ class Adapters:
         )
 
         return self._pick(InMemoryAcademicRecordRepository, PostgresAcademicRecordRepository)
+
+    # ---- identity ----
+
+    def credentials(self) -> object:
+        from identity.adapters.outbound import InMemoryCredentialRepository
+        from identity.adapters.outbound.postgres import PostgresCredentialRepository
+
+        return self._pick(InMemoryCredentialRepository, PostgresCredentialRepository)
 
     # ---- billing ----
 

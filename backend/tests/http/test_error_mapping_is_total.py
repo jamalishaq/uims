@@ -1,6 +1,6 @@
 """Every error a context can raise has a status, and no error falls through to a 500.
 
-There are twenty-one ``errors.py`` modules in this codebase and no shared base class between
+There are twenty-four ``errors.py`` modules in this codebase and no shared base class between
 them: ``ApplicationError`` names five unrelated classes, ``MissingIdentifierError`` names six.
 A table written by hand against that will eventually miss one, and the way it will be noticed
 is a stack trace in production where a 422 was meant.
@@ -29,6 +29,7 @@ CONTEXTS = (
     "course_catalog",
     "enrollment",
     "faculty_department",
+    "identity",
     "student_profile",
 )
 

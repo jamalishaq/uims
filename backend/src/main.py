@@ -45,6 +45,8 @@ import billing.adapters.inbound.http as billing_http
 import course_catalog.adapters.inbound.http as course_catalog_http
 import enrollment.adapters.inbound.http as enrollment_http
 import faculty_department.adapters.inbound.http as faculty_department_http
+import identity.adapters.inbound.http as identity_http
+import security
 import student_profile.adapters.inbound.http as student_profile_http
 from academic_records.adapters.inbound import GRADE_SUBMITTED, GradeSubmittedHandler
 from academic_records.adapters.outbound import CourseCatalogCourseCreditAdapter, CourseCredit
@@ -152,6 +154,17 @@ from faculty_department.application.read_program_placement import ReadProgramPla
 from faculty_department.application.register_lecturer import RegisterLecturer
 from faculty_department.application.submit_grade import SubmitGrade
 from http_api import install_envelope_for_framework_errors, install_exception_handlers
+from identity.adapters.outbound import JwtTokenIssuer
+from identity.adapters.outbound.postgres import PostgresCredentialRepository
+from identity.application.authenticate import Authenticate
+from identity.application.provision_credentials import (
+    ChangePassword,
+    IssueCredential,
+    ReadPrincipal,
+    ResetPassword,
+    SetCredentialActive,
+)
+from identity.application.refresh_session import RefreshSession
 from persistence import engine_for
 from student_profile.adapters.inbound import STUDENT_MATRICULATED, StudentMatriculatedHandler
 from student_profile.adapters.outbound import FacultyDepartmentDepartmentCodeAdapter
@@ -180,8 +193,10 @@ class Settings:
         env = os.environ if environ is None else environ
         self.database_url = env.get("DATABASE_URL", "")
         self.paystack_secret_key = env.get("PAYSTACK_SECRET_KEY", "")
+        self.jwt_secret_key = env.get("JWT_SECRET_KEY", "")
         self.allowed_origins = _origins(env.get("ALLOWED_ORIGINS", "[]"))
         self.department_numeric_codes = _department_codes(env.get("DEPARTMENT_NUMERIC_CODES", "{}"))
+        self.cookies_require_https = _cookies_require_https(self.allowed_origins)
 
     def require(self) -> "Settings":
         """Fail now, with a name, rather than at the first request that needs the value."""
@@ -190,6 +205,7 @@ class Settings:
             for name, value in (
                 ("DATABASE_URL", self.database_url),
                 ("PAYSTACK_SECRET_KEY", self.paystack_secret_key),
+                ("JWT_SECRET_KEY", self.jwt_secret_key),
             )
             if not value
         ]
@@ -207,6 +223,23 @@ def _origins(raw: str) -> list[str]:
     if not isinstance(parsed, list) or not all(isinstance(origin, str) for origin in parsed):
         raise RuntimeError(f"ALLOWED_ORIGINS must be a JSON array of strings, got {raw!r}")
     return parsed
+
+
+def _cookies_require_https(allowed_origins: list[str]) -> bool:
+    """Whether the refresh cookie carries ``Secure``. On unless every origin is plain HTTP.
+
+    Derived rather than configured, because it is not an independent choice: a ``Secure`` cookie
+    is never sent to an ``http://`` origin, so a developer on ``http://localhost`` with the flag
+    on cannot stay logged in — and the obvious fix, an ``INSECURE_COOKIES=1`` switch, is one
+    somebody eventually sets in production.
+
+    Reading it off ``ALLOWED_ORIGINS`` means the insecure case is exactly the case where the
+    frontend is already on plain HTTP, and a deployment that fixes its origins fixes this at the
+    same time. An empty list — no browser client configured — is treated as production.
+    """
+    return not allowed_origins or not all(
+        origin.startswith("http://") for origin in allowed_origins
+    )
 
 
 def _department_codes(raw: str) -> dict[str, str]:
@@ -455,6 +488,9 @@ class PostgresRepositories:
     def intents(self) -> Any:
         return PostgresPaymentIntentRepository(self._engine)
 
+    def credentials(self) -> Any:
+        return PostgresCredentialRepository(self._engine)
+
 
 def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     """Wire every repository, adapter, use case and subscription onto ``app.state``.
@@ -468,6 +504,15 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     than typed, for ``SessionFeeLedger``'s reason: the test suite's factory lives outside
     ``src/`` and cannot be made to inherit from anything in here.
     """
+    # -- the token codec, built before anything that needs it
+    #
+    # ``install_security`` hands this same instance to every guarded route, and
+    # ``JwtTokenIssuer`` below signs with it. That they are one object is the point: two codecs
+    # would be two keys, and every token this process issued would be refused by the process
+    # that issued it.
+    codec = security.TokenCodec(settings.jwt_secret_key)
+    security.install_security(app, codec)
+
     # -- one bus for the whole process
     #
     # Three contexts publish and three subscribe, and two of them do both: Admissions tells
@@ -563,6 +608,21 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
         ),
         MatricNumberIssuer(),
     )
+
+    # -- identity
+    #
+    # The last context wired and the only one nothing else talks to. It publishes no event and
+    # subscribes to none — see ``identity/adapters/inbound/__init__.py`` on why not even
+    # ``StudentMatriculated``, which is the obvious candidate — so there is nothing to connect
+    # it to. What it needs from out here is a signing key, and it reaches it the way every other
+    # secret does: as a constructor argument, through a port.
+    #
+    # ``JwtTokenIssuer`` is the one object that bridges this context and ``security.py``, and
+    # the codec it wraps is the *same instance* every guarded route checks tokens with. Two
+    # codecs would be two keys, and a token issued by one would be refused by the other on the
+    # very next request.
+    credentials = repositories.credentials()
+    token_issuer = JwtTokenIssuer(codec)
 
     # -- the subscriptions: the whole reason a composition root exists
     #
@@ -686,6 +746,21 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     )
     setattr(
         app.state,
+        identity_http.STATE_KEY,
+        identity_http.IdentityDependencies(
+            authenticate=Authenticate(credentials, token_issuer),
+            refresh_session=RefreshSession(credentials, token_issuer),
+            issue_credential=IssueCredential(credentials),
+            change_password=ChangePassword(credentials),
+            reset_password=ResetPassword(credentials),
+            set_credential_active=SetCredentialActive(credentials),
+            read_principal=ReadPrincipal(credentials),
+            refresh_cookie_max_age=codec.refresh_ttl_seconds,
+            cookies_require_https=settings.cookies_require_https,
+        ),
+    )
+    setattr(
+        app.state,
         student_profile_http.STATE_KEY,
         student_profile_http.StudentProfileDependencies(
             register_new_student=register_new_student,
@@ -698,6 +773,7 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
 # ---- the app -------------------------------------------------------------------------------
 
 ROUTERS = (
+    identity_http,
     admissions_http,
     student_profile_http,
     course_catalog_http,
@@ -706,7 +782,7 @@ ROUTERS = (
     academic_records_http,
     billing_http,
 )
-"""One router per context, mounted in the order the playbook built the contexts."""
+"""One router per context. Identity is first because it is the door everything else is behind."""
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -726,12 +802,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="University Management System",
         version="0.1.0",
-        summary="Seven bounded contexts, one HTTP surface.",
+        summary="Eight bounded contexts, one HTTP surface.",
         description=(
             "Hexagonal UMS API. Every route calls a use case and maps an application-layer "
             "view; no route touches a domain entity.\n\n"
-            "**This API has no authentication.** Until an auth phase lands it must not be "
-            "exposed to an untrusted network."
+            "**Every route under `/api/v1` requires a bearer token**, obtained from "
+            "`POST /api/v1/auth/login`, with four deliberate exceptions: the two login routes "
+            "themselves, `POST /api/v1/admissions/applications` (the public application form, "
+            "which somebody who has never had an account uses), and "
+            "`POST /api/v1/billing/webhooks/paystack` (authenticated by gateway signature "
+            "instead). `/health` is unauthenticated so a key rotation cannot take the API out "
+            "of rotation.\n\n"
+            "Authorization is scoped: a token carries a role and the unit it is scoped to, and "
+            "routes that name a unit check the two against each other. See `auth.md` in the "
+            "repository, including what it records as **not** enforced — a department "
+            "registrar can still act on another department's *programs*, because resolving a "
+            "programme to its department is a cross-context lookup Admissions cannot make."
         ),
         lifespan=lifespan,
     )
@@ -746,6 +832,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     install_envelope_for_framework_errors(app)
+    install_exception_handlers(app, security.SECURITY_EXCEPTION_STATUSES)
+    """The guards' own refusals, installed once and not per context.
+
+    ``security.py`` is not a context and has no ``EXCEPTION_STATUSES`` of the kind the loop
+    below reads, because the 401 and the 403 it raises are the same two answers whichever
+    router was being guarded. Installing them per router would register the same two handlers
+    eight times.
+    """
     for module in ROUTERS:
         app.include_router(module.router, prefix=API_PREFIX)
         install_exception_handlers(app, module.EXCEPTION_STATUSES)
