@@ -27,20 +27,23 @@ export const useAcademicRecord = (studentId) =>
  * Correct a mark already recorded. Administrative, and never the submitting lecturer's.
  *
  * It appends rather than overwrites: the previous score, the reason and the authoriser all stay
- * on the record. `authorisedBy` names who inside the university authorised it — which is not
+ * on the record. `authorizedBy` names who inside the university authorised it — which is not
  * always who typed it, so the form asks rather than filling it in from the token.
  */
 export const useCorrectGrade = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ studentId, courseId, semesterId, score, reason, authorisedBy }) =>
+    mutationFn: ({ studentId, courseId, semesterId, correctedScore, reason, authorizedBy }) =>
       api
         .post(`/academic-records/records/${studentId}/corrections`, {
           course_id: courseId,
           semester_id: semesterId,
-          score,
+          corrected_score: correctedScore,
           reason,
-          authorised_by: authorisedBy,
+          // American spelling, because that is the field the API declares. Renaming it here to
+          // match the prose above would send a key the server forbids — it rejects unknown
+          // fields outright rather than ignoring them.
+          authorized_by: authorizedBy,
         })
         .then((r) => r.data),
     onSuccess: (_, { studentId }) =>
