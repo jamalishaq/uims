@@ -21,8 +21,11 @@ import useTitle from '../../hooks/useTitle'
  */
 export default function Transcript() {
   useTitle('Transcript')
-  const { scopeId } = useAuth()
-  const { data, isLoading, error } = useAcademicRecord(scopeId)
+  const { loginId } = useAuth()
+  // Academic Records keys a record by the id Enrollment and Billing also use, which is the
+  // **matric number** — `loginId` — not the `student_id` Student Profile minted. Verified
+  // against the running API: /records/stu-0001 is a 404 and /records/260591001 is the record.
+  const { data, isLoading, error } = useAcademicRecord(loginId)
 
   if (isLoading) return <Loading label="Loading your transcript…" />
 

@@ -31,7 +31,9 @@ const STATUSES = [
   'accepted',
   'declined',
   'matriculated',
-  'no_offer',
+  // The enum's wire value, spaces and all. An unrecognised filter is a 422 rather than an
+  // empty list, deliberately — a typo that read as "no applicants" is one a registrar acts on.
+  'no offer available',
 ]
 
 /**

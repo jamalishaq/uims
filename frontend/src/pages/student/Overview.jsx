@@ -27,7 +27,10 @@ export default function StudentOverview() {
   const { scopeId, loginId } = useAuth()
 
   const student = useStudent(scopeId)
-  const record = useAcademicRecord(scopeId)
+  // Academic Records keys a record by the id Enrollment and Billing also use, which is the
+  // **matric number** — `loginId` — not the `student_id` Student Profile minted. Verified
+  // against the running API: /records/stu-0001 is a 404 and /records/260591001 is the record.
+  const record = useAcademicRecord(loginId)
   // The ledger is keyed by a neutral party-id: the matric number after matriculation, the
   // applicant id before it. `loginId` is the matric number, which is the one this app holds.
   const account = useAccount(loginId)

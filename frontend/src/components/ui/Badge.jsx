@@ -21,37 +21,44 @@ export default function Badge({ children, tone = 'neutral', className = '' }) {
  *
  * Worth centralising because two of these are easy to get backwards. **`declined` is not a
  * failure** — it is an applicant exercising a choice, and it returns their place to the quota,
- * so it reads neutral rather than red. **`no_offer` is not an error either**: every cycle in the
+ * so it reads neutral rather than red. **`no offer available` is not an error either**: every cycle in the
  * chain was full, which is a normal outcome of a fully automatic process, and colouring it red
  * would suggest somebody made a mistake.
  *
  * What *is* red is `probation` and `refused` — the two states somebody has to act on.
  */
 export const STATUS_TONE = {
-  // admissions
+  // admissions — ApplicationStatus
   applied: 'neutral',
   screened: 'brand',
   offered: 'brand',
   accepted: 'success',
   declined: 'neutral',
   matriculated: 'success',
-  no_offer: 'neutral',
-  // academic standing
-  good_standing: 'success',
+  'no offer available': 'neutral',
+  // academic records — Standing
+  'good standing': 'success',
   probation: 'danger',
-  // enrollment
+  // enrollment — EnrollmentStatus
   registered: 'brand',
-  awaiting_grade: 'warning',
+  'awaiting grade': 'warning',
   finalized: 'success',
   refused: 'danger',
-  // payment intents
+  // billing — PaymentIntentStatus
   initiated: 'warning',
   confirmed: 'success',
   failed: 'danger',
   abandoned: 'neutral',
 }
 
-/** Turn `no_offer_available` into `No offer available` without a second mapping table. */
+/**
+ * Turn a wire value into a label: `no offer available` → `No offer available`.
+ *
+ * Underscores are handled too, but **the values are space-separated** — `'good standing'`,
+ * `'awaiting grade'`, `'no offer available'`, `'acceptance fee'`. Read off the domain enums
+ * rather than guessed; the first draft of the table above assumed snake_case and would have
+ * rendered every one of them in the neutral fallback tone.
+ */
 export const humanise = (value = '') =>
   String(value).replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
