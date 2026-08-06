@@ -15,7 +15,11 @@ same argument at length.
 from dataclasses import dataclass
 from datetime import date
 
+from admissions.application.summarise_program_admissions import ProgramAdmissionsSummary
+from admissions.domain.admission_cycle import AdmissionCycle
+from admissions.domain.alternative_program_policy import AlternativeProgramPolicy
 from admissions.domain.applicant import Applicant
+from admissions.domain.entry_requirement import ProgramEntryRequirement
 
 
 @dataclass(frozen=True)
@@ -69,3 +73,111 @@ class ApplicantView:
             ),
             utme_aggregate=applicant.utme_result.aggregate,
         )
+
+
+@dataclass(frozen=True)
+class AdmissionCycleView:
+    """One program's intake for one session, and how much of it is left.
+
+    ``places_remaining`` and ``is_full`` are derived by the aggregate rather than subtracted
+    here, so the numbers reported are the ones the quota invariant is actually enforced on.
+    A registrar reading a dashboard and the cycle refusing an offer must never disagree.
+    """
+
+    program_id: str
+    session_id: str
+    quota: int
+    offers_made: int
+    places_remaining: int
+    is_full: bool
+
+    @classmethod
+    def of(cls, cycle: AdmissionCycle) -> "AdmissionCycleView":
+        return cls(
+            program_id=cycle.program_id,
+            session_id=cycle.session_id,
+            quota=cycle.quota,
+            offers_made=cycle.offers_made,
+            places_remaining=cycle.places_remaining,
+            is_full=cycle.is_full,
+        )
+
+
+@dataclass(frozen=True)
+class ProgramEntryRequirementView:
+    """What a program demands of an applicant's subjects, for one session.
+
+    Both ``required_subjects`` and each of ``one_of_groups`` are sorted. The aggregate holds
+    them as frozensets, which have no order, so an unsorted projection would give a different
+    response body on every process — the kind of instability that makes an API impossible to
+    cache or to diff. Neither set means anything by its order, so imposing one costs nothing.
+
+    ``one_of_groups`` keeps its own tuple order, which the aggregate does define.
+    """
+
+    program_id: str
+    session_id: str
+    required_subjects: tuple[str, ...]
+    one_of_groups: tuple[tuple[str, ...], ...]
+
+    @classmethod
+    def of(cls, requirement: ProgramEntryRequirement) -> "ProgramEntryRequirementView":
+        return cls(
+            program_id=requirement.program_id,
+            session_id=requirement.session_id,
+            required_subjects=tuple(sorted(requirement.required_subjects)),
+            one_of_groups=tuple(
+                tuple(sorted(group.options)) for group in requirement.one_of_groups
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class AlternativeProgramPolicyView:
+    """Where a program overflows to, in preference order.
+
+    ``alternatives`` keeps the tuple's order untouched: order is the whole content of this
+    policy, and a projection that sorted it would report a different admissions policy from
+    the one the offer flow will actually walk.
+    """
+
+    program_id: str
+    session_id: str
+    alternatives: tuple[str, ...]
+
+    @classmethod
+    def of(cls, policy: AlternativeProgramPolicy) -> "AlternativeProgramPolicyView":
+        return cls(
+            program_id=policy.program_id,
+            session_id=policy.session_id,
+            alternatives=policy.alternatives,
+        )
+
+
+@dataclass(frozen=True)
+class ProgramAdmissionsSummaryView:
+    """One program's capacity and one program's cohort, flat.
+
+    The capacity fields are ``None`` when no cycle has been opened, which is a real state
+    rather than a missing one — a registrar who published a requirement but has not yet set a
+    quota — and reporting it as zero would say the program is full.
+    """
+
+    program_id: str
+    session_id: str
+    quota: int | None
+    offers_made: int | None
+    places_remaining: int | None
+    is_full: bool | None
+    applied: int
+    screened: int
+    offered: int
+    accepted: int
+    declined: int
+    matriculated: int
+    no_offer_available: int
+    total_applicants: int
+
+    @classmethod
+    def of(cls, summary: ProgramAdmissionsSummary) -> "ProgramAdmissionsSummaryView":
+        return cls(**vars(summary))

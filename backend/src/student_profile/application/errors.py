@@ -11,6 +11,10 @@ class ApplicationError(Exception):
     """Base class for every Student Profile use-case error."""
 
 
+class StudentNotFoundError(ApplicationError):
+    """No student is stored under the given identifier."""
+
+
 class ProgramPlacementUnknownError(ApplicationError):
     """Faculty & Department could not say which department and year a placement means.
 

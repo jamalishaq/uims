@@ -9,7 +9,11 @@ entirely beside the point.
 """
 
 from http_api import ExceptionStatuses
-from student_profile.application.errors import ApplicationError, ProgramPlacementUnknownError
+from student_profile.application.errors import (
+    ApplicationError,
+    ProgramPlacementUnknownError,
+    StudentNotFoundError,
+)
 from student_profile.domain.errors import StudentProfileError
 from student_profile.ports.errors import (
     AggregateNotFoundError,
@@ -20,6 +24,7 @@ from student_profile.ports.errors import (
 
 EXCEPTION_STATUSES: ExceptionStatuses = {
     # 404 — the student is not there.
+    StudentNotFoundError: 404,
     AggregateNotFoundError: 404,
     # 409 — that id, or that matric number, is already held.
     DuplicateAggregateError: 409,

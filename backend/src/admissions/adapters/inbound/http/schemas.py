@@ -16,9 +16,19 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from admissions.application.accept_offer import OfferTakenUp
+from admissions.application.decline_offer import OfferDeclined
 from admissions.application.make_offer_to_applicant import NoOfferAvailable, OfferMade
+from admissions.application.matriculate_applicant import ApplicantMatriculated
 from admissions.application.screen_applicant import ApplicantNotQualified, ApplicantQualified
-from admissions.application.views import ApplicantView, UtmeSubjectScoreView
+from admissions.application.views import (
+    AdmissionCycleView,
+    AlternativeProgramPolicyView,
+    ApplicantView,
+    ProgramAdmissionsSummaryView,
+    ProgramEntryRequirementView,
+    UtmeSubjectScoreView,
+)
 
 
 class UtmeSubjectScoreSchema(BaseModel):
@@ -151,3 +161,180 @@ class NoOfferAvailableResponse(BaseModel):
 
 OfferResponse = OfferMadeResponse | NoOfferAvailableResponse
 """Both ways an offer decision can end, tagged by ``outcome``."""
+
+
+class OfferTakenUpResponse(BaseModel):
+    """The applicant accepted, and their ledger has been opened.
+
+    Not a discriminated union, unlike the two above: accepting has one ending. Every other
+    way this request can go is a refusal by the aggregate, and those leave as 4xx.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+
+    @classmethod
+    def of(cls, taken_up: OfferTakenUp) -> "OfferTakenUpResponse":
+        return cls(**vars(taken_up))
+
+
+class OfferDeclinedResponse(BaseModel):
+    """The applicant turned the place down, and the cycle has it back.
+
+    ``places_remaining`` is the figure the decline actually moved, reported because a
+    registrar watching a program fill up is watching exactly this number.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+    places_remaining: int
+
+    @classmethod
+    def of(cls, declined: OfferDeclined) -> "OfferDeclinedResponse":
+        return cls(**vars(declined))
+
+
+class ApplicantMatriculatedResponse(BaseModel):
+    """The application is closed and a student exists.
+
+    No matric number, because this context never learns it — issuing one is Student Profile's
+    job and nothing is published back (CLAUDE.md section 3). A client that needs the number
+    reads it from Student Profile, which is the context that owns it.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+
+    @classmethod
+    def of(cls, matriculated: ApplicantMatriculated) -> "ApplicantMatriculatedResponse":
+        return cls(**vars(matriculated))
+
+
+# ---- the session-scoped policy a registrar writes before a cycle runs ----
+
+
+class OpenAdmissionCycleRequest(BaseModel):
+    """A program's intake for a session.
+
+    ``quota`` is ``ge=0`` rather than ``gt=0``: zero is a meaningful policy — a program that
+    is not admitting this session — and the domain treats such a cycle as full from the moment
+    it opens.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    program_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    quota: int = Field(ge=0)
+
+
+class AdmissionCycleResponse(BaseModel):
+    """One program's intake, and how much of it is left."""
+
+    program_id: str
+    session_id: str
+    quota: int
+    offers_made: int
+    places_remaining: int
+    is_full: bool
+
+    @classmethod
+    def of(cls, view: AdmissionCycleView) -> "AdmissionCycleResponse":
+        return cls(**vars(view))
+
+
+class PublishEntryRequirementRequest(BaseModel):
+    """What a program demands of an applicant's four UTME subjects.
+
+    Neither list is bounded here. How many demands a result can satisfy is the domain's rule
+    — four distinct subjects — and restating it as a schema constraint would put the same
+    number in two places, to disagree the day it changes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    program_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    required_subjects: tuple[str, ...] = ()
+    one_of_groups: tuple[tuple[str, ...], ...] = ()
+
+
+class ProgramEntryRequirementResponse(BaseModel):
+    """The published requirement. Subjects come back upper-cased and sorted."""
+
+    program_id: str
+    session_id: str
+    required_subjects: tuple[str, ...]
+    one_of_groups: tuple[tuple[str, ...], ...]
+
+    @classmethod
+    def of(cls, view: ProgramEntryRequirementView) -> "ProgramEntryRequirementResponse":
+        return cls(**vars(view))
+
+
+class PublishAlternativePolicyRequest(BaseModel):
+    """Where a program overflows to, best first.
+
+    A list rather than a set, and the order is the policy: the first qualifying program with a
+    place left takes the applicant.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    program_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    alternatives: tuple[str, ...] = ()
+
+
+class AlternativeProgramPolicyResponse(BaseModel):
+    """The published chain, in the order it will be walked."""
+
+    program_id: str
+    session_id: str
+    alternatives: tuple[str, ...]
+
+    @classmethod
+    def of(cls, view: AlternativeProgramPolicyView) -> "AlternativeProgramPolicyResponse":
+        return cls(**vars(view))
+
+
+class ApplicantListResponse(BaseModel):
+    """The applicants for one program. An empty list is a normal answer."""
+
+    applicants: tuple[ApplicantResponse, ...]
+
+
+class ProgramAdmissionsSummaryResponse(BaseModel):
+    """A registrar's view of one program: capacity above, cohort below.
+
+    **The two halves count different populations and will not reconcile.** ``offers_made``
+    counts places claimed *on this program*, including by applicants who applied elsewhere and
+    overflowed here through another program's fallback chain. The funnel counts applicants who
+    *applied to* this program, including ones offered a place somewhere else. Both are needed
+    and neither is the other.
+
+    The capacity fields are ``null`` when no cycle has been opened — a real state, and one that
+    reporting as zero would render as "full".
+    """
+
+    program_id: str
+    session_id: str
+    quota: int | None
+    offers_made: int | None
+    places_remaining: int | None
+    is_full: bool | None
+    applied: int
+    screened: int
+    offered: int
+    accepted: int
+    declined: int
+    matriculated: int
+    no_offer_available: int
+    total_applicants: int
+
+    @classmethod
+    def of(cls, view: ProgramAdmissionsSummaryView) -> "ProgramAdmissionsSummaryResponse":
+        return cls(**vars(view))

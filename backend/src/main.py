@@ -50,7 +50,9 @@ from academic_records.adapters.inbound import GRADE_SUBMITTED, GradeSubmittedHan
 from academic_records.adapters.outbound import CourseCatalogCourseCreditAdapter, CourseCredit
 from academic_records.adapters.outbound.postgres import PostgresAcademicRecordRepository
 from academic_records.application import CorrectGrade, ReadAcademicRecord, RecordSubmittedGrade
+from admissions.adapters.inbound import ACCEPTANCE_FEE_PAID, AcceptanceFeePaidHandler
 from admissions.adapters.outbound import FacultyDepartmentProgramInfoAdapter
+from admissions.adapters.outbound import InMemoryEventBus as AdmissionsEventBus
 from admissions.adapters.outbound import ProgramPlacement as AdmissionsProgramPlacement
 from admissions.adapters.outbound.postgres import (
     PostgresAdmissionCycleRepository,
@@ -58,16 +60,33 @@ from admissions.adapters.outbound.postgres import (
     PostgresApplicantRepository,
     PostgresProgramEntryRequirementRepository,
 )
+from admissions.application.accept_offer import AcceptOffer
+from admissions.application.decline_offer import DeclineOffer
+from admissions.application.list_program_applicants import ListProgramApplicants
 from admissions.application.make_offer_to_applicant import MakeOfferToApplicant
+from admissions.application.matriculate_applicant import MatriculateApplicant
+from admissions.application.open_admission_cycle import OpenAdmissionCycle
+from admissions.application.publish_alternative_policy import PublishAlternativePolicy
+from admissions.application.publish_entry_requirement import PublishEntryRequirement
+from admissions.application.read_policy import (
+    ReadAdmissionCycle,
+    ReadAlternativePolicy,
+    ReadEntryRequirement,
+)
+from admissions.application.record_acceptance_fee_paid import RecordAcceptanceFeePaid
 from admissions.application.screen_applicant import ScreenApplicant
 from admissions.application.submit_application import SubmitApplication
+from admissions.application.summarise_program_admissions import SummariseProgramAdmissions
 from billing.adapters.inbound import (
+    OFFER_ACCEPTED,
     SESSION_OPENED,
+    OfferAcceptedHandler,
     PaymentWebhookHandler,
     SessionOpenedHandler,
     WebhookSignatureVerifier,
 )
-from billing.adapters.outbound import InMemoryEventPublisher, StubPaymentGateway
+from billing.adapters.outbound import InMemoryEventBus as BillingEventBus
+from billing.adapters.outbound import StubPaymentGateway
 from billing.adapters.outbound.postgres import (
     PostgresAccountRepository,
     PostgresFeeScheduleRepository,
@@ -77,6 +96,7 @@ from billing.application.apply_session_fees import ApplySessionFees
 from billing.application.confirm_payment import ConfirmPayment
 from billing.application.initiate_payment import InitiatePayment
 from billing.application.link_student_account import LinkStudentAccount
+from billing.application.open_account_for_offer import OpenAccountForOffer
 from billing.application.read_account import ReadAccount
 from billing.application.reconcile_payment_intents import ReconcilePaymentIntents
 from billing.application.record_payment import RecordPayment
@@ -105,7 +125,8 @@ from enrollment.adapters.outbound.postgres import (
     PostgresEnrollmentRepository,
 )
 from enrollment.application.register_for_course import RegisterForCourse
-from faculty_department.adapters.outbound import InMemoryEventBus
+from event_bus import EventBus
+from faculty_department.adapters.outbound import InMemoryEventBus as FacultyDepartmentEventBus
 from faculty_department.adapters.outbound.postgres import (
     PostgresDepartmentRepository,
     PostgresFacultyRepository,
@@ -113,16 +134,34 @@ from faculty_department.adapters.outbound.postgres import (
     PostgresProgramRepository,
     PostgresSessionRepository,
 )
+from faculty_department.application.create_structure import (
+    CreateDepartment,
+    CreateFaculty,
+    CreateProgram,
+    SetProgramAdmissions,
+)
+from faculty_department.application.list_department_programs import ListDepartmentPrograms
+from faculty_department.application.manage_calendar import OpenSession, PlanSession
+from faculty_department.application.manage_lecturers import (
+    AmendLecturerProfile,
+    AssignLecturerToCourse,
+    WithdrawLecturerFromCourse,
+)
+from faculty_department.application.read_lecturers import ListDepartmentLecturers, ReadLecturer
 from faculty_department.application.read_program_placement import ReadProgramPlacement
+from faculty_department.application.register_lecturer import RegisterLecturer
 from faculty_department.application.submit_grade import SubmitGrade
 from http_api import install_envelope_for_framework_errors, install_exception_handlers
 from persistence import engine_for
+from student_profile.adapters.inbound import STUDENT_MATRICULATED, StudentMatriculatedHandler
 from student_profile.adapters.outbound import FacultyDepartmentDepartmentCodeAdapter
 from student_profile.adapters.outbound import ProgramPlacement as StudentProfileProgramPlacement
 from student_profile.adapters.outbound.postgres import (
     PostgresMatricSequenceRepository,
     PostgresStudentRepository,
 )
+from student_profile.application.correct_student_bio_data import CorrectStudentBioData
+from student_profile.application.read_student import ReadStudent
 from student_profile.application.register_new_student import RegisterNewStudent
 from student_profile.domain.matric_number_issuer import MatricNumberIssuer
 
@@ -429,19 +468,30 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     than typed, for ``SessionFeeLedger``'s reason: the test suite's factory lives outside
     ``src/`` and cannot be made to inherit from anything in here.
     """
+    # -- one bus for the whole process
+    #
+    # Three contexts publish and three subscribe, and two of them do both: Admissions tells
+    # Billing an offer was accepted, Billing tells Admissions the acceptance fee cleared. A bus
+    # each would make that a pair of monologues, so there is one, and each context's own
+    # adapter wraps it to satisfy that context's own ``EventPublisherPort``. What crosses is a
+    # topic name and a mapping of primitives; no context imports another's event type, which is
+    # what lets the subscriptions below be one line each.
+    bus = EventBus()
+
     # -- faculty & department
     #
-    # The faculty repository is not built, and its absence is a finding rather than an
-    # oversight: no use case in the system reads a faculty. Faculties exist as an aggregate and
-    # a table with nothing above them, which is the same gap that leaves this context with two
-    # routes — see its router's docstring.
+    # The faculty repository is built now, and what changed is that something reads a faculty:
+    # ``CreateDepartment`` checks the one it is given exists. Its absence used to be recorded
+    # here as a finding — "no use case in the system reads a faculty" — and that was the same
+    # gap that left this context with two routes.
+    faculties = repositories.faculties()
     departments = repositories.departments()
     programs = repositories.programs()
     lecturers = repositories.lecturers()
     sessions = repositories.sessions()
 
-    bus = InMemoryEventBus()
-    submit_grade = SubmitGrade(lecturers, sessions, bus)
+    faculty_events = FacultyDepartmentEventBus(bus)
+    submit_grade = SubmitGrade(lecturers, sessions, faculty_events)
     read_program_placement = ReadProgramPlacement(programs, departments, sessions)
 
     # -- course catalog
@@ -461,7 +511,7 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     accounts = repositories.accounts()
     schedules = repositories.schedules()
     intents = repositories.intents()
-    billing_events = InMemoryEventPublisher()
+    billing_events = BillingEventBus(bus)
 
     read_account = ReadAccount(accounts)
     record_payment = RecordPayment(accounts, billing_events)
@@ -470,6 +520,7 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
         intents, StubPaymentGateway(), confirm_payment
     )
     apply_session_fees = ApplySessionFees(accounts, schedules, billing_events)
+    open_account_for_offer = OpenAccountForOffer(accounts, schedules, billing_events)
     payment_webhook = PaymentWebhookHandler(
         WebhookSignatureVerifier(settings.paystack_secret_key), confirm_payment
     )
@@ -491,10 +542,15 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
     cycles = repositories.cycles()
     requirements = repositories.requirements()
     policies = repositories.policies()
+    admissions_events = AdmissionsEventBus(bus)
     submit_application = SubmitApplication(
         applicants,
         FacultyDepartmentProgramInfoAdapter(_AdmissionsPlacementSource(placement_source)),
     )
+    accept_offer = AcceptOffer(applicants, admissions_events)
+    decline_offer = DeclineOffer(applicants, cycles)
+    matriculate_applicant = MatriculateApplicant(applicants, admissions_events)
+    record_acceptance_fee_paid = RecordAcceptanceFeePaid(applicants)
 
     # -- student profile
     students = repositories.students()
@@ -510,39 +566,60 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
 
     # -- the subscriptions: the whole reason a composition root exists
     #
-    # Two of the four handlers in the system are subscribed here and two are not, and the split
-    # is not an omission.
+    # Every handler in the system is subscribed here, which has not been true before. Two of
+    # them — ``OfferAcceptedHandler`` and ``StudentMatriculatedHandler`` — sat unwired for five
+    # phases with neither an ``on_message`` nor a ``from_payload``, because Admissions published
+    # nothing and writing the deserialiser would have meant inventing the wire shape of an event
+    # no publisher had ever emitted. Admissions has a publisher now, so the shapes are read off
+    # a contract instead of guessed, and the loop closes.
     #
-    # ``GradeSubmittedHandler`` and ``SessionOpenedHandler`` both expose ``on_message`` and both
-    # have a publisher — ``SubmitGrade`` publishes ``GradeSubmitted`` on every submission, and
-    # ``Session.open()`` produces ``SessionOpened``. Wiring them is real.
+    # **What that fixes is worth stating plainly**, because the old comment here stated the
+    # break at length. ``OpenAccountForOffer`` is the only way an ``Account`` is ever created and
+    # it is reachable only from ``OfferAccepted``; with no publisher, no ledger was ever opened
+    # in a running system, and everything downstream of a ledger — payments, clearance,
+    # registration — had nothing to act on. An applicant could be offered a place and then go
+    # nowhere at all. Accepting an offer now opens the ledger, paying the acceptance fee now
+    # reaches back to Admissions, and matriculating now produces a student.
     #
-    # ``OfferAcceptedHandler`` and ``StudentMatriculatedHandler`` deliberately have neither an
-    # ``on_message`` nor a ``from_payload``, and their own docstrings say why: Admissions
-    # publishes nothing yet, because it has no use case that accepts an offer or matriculates
-    # anybody. Subscribing them would mean writing the deserialiser here — inventing the wire
-    # shape of an event no publisher has ever emitted, in the one file that is supposed to
-    # contain no opinions. CLAUDE.md section 3 makes the same call about the matric-number
-    # link: "a handler for an event nobody publishes is wiring that can be neither right nor
-    # wrong." What is missing is the publisher, and it is missing in Admissions rather than
-    # here.
+    # **Admissions and Billing subscribe to each other, and that is not a cycle to worry
+    # about.** Neither imports the other; both name a topic. It terminates on its own too:
+    # opening a ledger raises charges and pays nothing, so ``AcceptanceFeePaid`` cannot fire
+    # from inside the ``OfferAccepted`` that opened the account.
     #
-    # **This has a consequence worth stating plainly.** ``OpenAccountForOffer`` is the only way
-    # an ``Account`` is ever created, and it is reachable only from ``OfferAccepted``. With no
-    # publisher there is no subscription, so in a running system no ledger is opened, and
-    # everything downstream of a ledger — payments, clearance, registration — has nothing to
-    # act on. That is not a defect of this wiring: it is the application-layer gap
-    # (``Applicant.accept()`` has no use case in front of it) arriving where it becomes
-    # visible. It is left visible rather than patched over with a route that opens accounts
-    # directly, which would put a second, unguarded door into the ledger.
+    # Delivery is synchronous, so a subscriber that raises takes the publishing request down
+    # with it. That is the behaviour we want at this boundary — an accepted offer whose ledger
+    # failed to open is the broken state, and reporting it as success would hide a student who
+    # can never pay.
     bus.subscribe(GRADE_SUBMITTED, GradeSubmittedHandler(record_submitted_grade).on_message)
     bus.subscribe(SESSION_OPENED, SessionOpenedHandler(apply_session_fees).on_message)
+    bus.subscribe(OFFER_ACCEPTED, OfferAcceptedHandler(open_account_for_offer).on_message)
+    bus.subscribe(
+        STUDENT_MATRICULATED,
+        StudentMatriculatedHandler(register_new_student, students).on_message,
+    )
+    bus.subscribe(
+        ACCEPTANCE_FEE_PAID, AcceptanceFeePaidHandler(record_acceptance_fee_paid).on_message
+    )
 
     setattr(
         app.state,
         faculty_department_http.STATE_KEY,
         faculty_department_http.FacultyDepartmentDependencies(
-            submit_grade=submit_grade, read_program_placement=read_program_placement
+            submit_grade=submit_grade,
+            read_program_placement=read_program_placement,
+            create_faculty=CreateFaculty(faculties),
+            create_department=CreateDepartment(departments, faculties),
+            create_program=CreateProgram(programs, departments),
+            set_program_admissions=SetProgramAdmissions(programs),
+            list_department_programs=ListDepartmentPrograms(programs),
+            plan_session=PlanSession(sessions),
+            open_session=OpenSession(sessions, faculty_events),
+            register_lecturer=RegisterLecturer(lecturers, departments),
+            amend_lecturer_profile=AmendLecturerProfile(lecturers),
+            assign_lecturer_to_course=AssignLecturerToCourse(lecturers),
+            withdraw_lecturer_from_course=WithdrawLecturerFromCourse(lecturers),
+            read_lecturer=ReadLecturer(lecturers),
+            list_department_lecturers=ListDepartmentLecturers(lecturers),
         ),
     )
     setattr(
@@ -594,12 +671,27 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
             make_offer_to_applicant=MakeOfferToApplicant(
                 applicants, cycles, requirements, policies
             ),
+            accept_offer=accept_offer,
+            decline_offer=decline_offer,
+            matriculate_applicant=matriculate_applicant,
+            open_admission_cycle=OpenAdmissionCycle(cycles),
+            publish_entry_requirement=PublishEntryRequirement(requirements),
+            publish_alternative_policy=PublishAlternativePolicy(policies),
+            read_admission_cycle=ReadAdmissionCycle(cycles),
+            read_entry_requirement=ReadEntryRequirement(requirements),
+            read_alternative_policy=ReadAlternativePolicy(policies),
+            summarise_program_admissions=SummariseProgramAdmissions(applicants, cycles),
+            list_program_applicants=ListProgramApplicants(applicants),
         ),
     )
     setattr(
         app.state,
         student_profile_http.STATE_KEY,
-        student_profile_http.StudentProfileDependencies(register_new_student=register_new_student),
+        student_profile_http.StudentProfileDependencies(
+            register_new_student=register_new_student,
+            read_student=ReadStudent(students),
+            correct_student_bio_data=CorrectStudentBioData(students),
+        ),
     )
 
 

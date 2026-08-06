@@ -25,6 +25,7 @@ from admissions.adapters.outbound.in_memory_applicant_repository import InMemory
 from admissions.adapters.outbound.in_memory_entry_requirement_repository import (
     InMemoryProgramEntryRequirementRepository,
 )
+from admissions.adapters.outbound.in_memory_event_bus import InMemoryEventBus
 from admissions.adapters.outbound.in_memory_program_info_adapter import InMemoryProgramInfoAdapter
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "InMemoryAdmissionCycleRepository",
     "InMemoryAlternativeProgramPolicyRepository",
     "InMemoryApplicantRepository",
+    "InMemoryEventBus",
     "InMemoryProgramEntryRequirementRepository",
     "InMemoryProgramInfoAdapter",
     "ProgramPlacement",

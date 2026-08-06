@@ -13,16 +13,14 @@ belongs to the domain on this side. This file turns a message into a command.
 class. A consumer never imports a publisher's event type (CLAUDE.md section 3), and the
 architecture fitness test would reject the import anyway.
 
-**There is no ``from_payload`` here yet, deliberately.** Admissions publishes nothing today —
-its ports package says so outright: the event publisher is "Not here yet, and deliberately",
-and ``OfferAccepted`` "is not raised by anything built so far". Writing a deserialiser now
-would mean guessing the payload's keys, and a guess that is wrong fails at the one moment it
-matters. Student Profile made the same call for ``StudentMatriculated``: the typed half is
-written, and the wire half arrives with the publisher. The handler is exercised by calling
-:meth:`OfferAcceptedHandler.handle` with a message, which is what a bus adapter will do once
-there is one.
+**The ``from_payload`` half arrived with the publisher, which is how it was always meant to.**
+For five phases this file had only a typed message: Admissions published nothing, so writing a
+deserialiser would have meant guessing the payload's keys, and a guess that is wrong fails at
+the one moment it matters. Admissions now has an ``EventPublisherPort`` and an ``AcceptOffer``
+use case behind it, so the keys below are read off a real contract rather than invented.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from billing.application.open_account_for_offer import (
@@ -55,6 +53,26 @@ class OfferAcceptedMessage:
     session_id: str
     level: int = ENTRY_LEVEL
 
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, object]) -> "OfferAcceptedMessage":
+        """Build the message from what the bus delivered.
+
+        Three fields read by name; the rest of the payload is ignored, so a publisher adding
+        one does not break this consumer. ``level`` is deliberately not read at all — no key
+        for it exists on the wire, because Admissions has no opinion about a level and this
+        context's ``ENTRY_LEVEL`` is the answer.
+
+        A missing key is a ``KeyError`` and stays one: it means the contract this context was
+        written against is not what arrived, and an applicant or program quietly defaulted
+        into shape would open a ledger against the wrong person or price it for the wrong
+        program.
+        """
+        return cls(
+            applicant_id=str(payload["applicant_id"]),
+            program_id=str(payload["program_id"]),
+            session_id=str(payload["session_id"]),
+        )
+
 
 class OfferAcceptedHandler:
     """Opens the ledger an accepted offer creates."""
@@ -79,3 +97,12 @@ class OfferAcceptedHandler:
                 level=message.level,
             )
         )
+
+    async def on_message(self, payload: Mapping[str, object]) -> None:
+        """Subscribe *this* to a bus: deserialise, then handle.
+
+        The signature a transport can call without knowing anything about this context —
+        which is what lets the wiring that connects Admissions to Billing be a single line in
+        a composition root, importing neither context's event type.
+        """
+        await self.handle(OfferAcceptedMessage.from_payload(payload))

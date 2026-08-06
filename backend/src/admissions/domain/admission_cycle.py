@@ -118,6 +118,30 @@ class AdmissionCycle:
             quota=self._quota,
         )
 
+    def release(self) -> None:
+        """Give a claimed place back, because the applicant holding it declined.
+
+        The counterpart to :meth:`offer`, and the whole reason it exists: ``offers_made``
+        counts places *held*, not offers ever posted. Without this a program under-admits by
+        exactly its decline rate — and with offers made automatically (CLAUDE.md section 3)
+        there is no admissions officer working the list who would notice and hand the place
+        out again.
+
+        Not an outcome like :meth:`offer`'s, because there is no second answer to give. A
+        cycle asked to release a place it never claimed has not run out of anything; its
+        caller has lost track of who holds what.
+
+        Raises:
+            InvalidOffersMadeError: no place is claimed on this cycle. Flooring silently at
+                zero would turn a caller's bookkeeping error into a quota that quietly grew.
+        """
+        if self._offers_made == 0:
+            raise InvalidOffersMadeError(
+                f"cycle for program {self._program_id} in session {self._session_id} "
+                "holds no offers to release"
+            )
+        self._offers_made -= 1
+
     def __repr__(self) -> str:
         return (
             f"AdmissionCycle(program_id={self._program_id!r}, "

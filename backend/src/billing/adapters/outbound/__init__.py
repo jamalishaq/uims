@@ -23,6 +23,7 @@ question is a rule, and rules get tests.
 """
 
 from billing.adapters.outbound.in_memory_account_repository import InMemoryAccountRepository
+from billing.adapters.outbound.in_memory_event_bus import InMemoryEventBus
 from billing.adapters.outbound.in_memory_event_publisher import InMemoryEventPublisher
 from billing.adapters.outbound.in_memory_fee_schedule_repository import (
     InMemoryFeeScheduleRepository,
@@ -34,6 +35,7 @@ from billing.adapters.outbound.stub_payment_gateway import StubPaymentGateway
 
 __all__ = [
     "InMemoryAccountRepository",
+    "InMemoryEventBus",
     "InMemoryEventPublisher",
     "InMemoryFeeScheduleRepository",
     "InMemoryPaymentIntentRepository",
