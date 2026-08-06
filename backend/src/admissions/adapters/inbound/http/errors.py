@@ -19,11 +19,15 @@ from admissions.application.errors import (
     ProgramNotFoundError,
 )
 from admissions.domain.errors import (
+    AcceptanceFeeNotClearedError,
     AdmissionsError,
     ApplicantAlreadyScreenedError,
     ApplicantNotScreenedError,
     ApplicationOutcomeFinalError,
+    NoOfferToRespondToError,
     OfferAlreadyMadeError,
+    OfferAlreadyRespondedToError,
+    OfferNotAcceptedError,
 )
 from admissions.ports.errors import (
     AggregateNotFoundError,
@@ -44,6 +48,10 @@ EXCEPTION_STATUSES: ExceptionStatuses = {
     ApplicantAlreadyScreenedError: 409,
     ApplicantNotScreenedError: 409,
     OfferAlreadyMadeError: 409,
+    NoOfferToRespondToError: 409,
+    OfferAlreadyRespondedToError: 409,
+    OfferNotAcceptedError: 409,
+    AcceptanceFeeNotClearedError: 409,
     ApplicationOutcomeFinalError: 409,
     DuplicateAggregateError: 409,
     # 422 — the form is wrong.

@@ -4,10 +4,10 @@ What is worth proving about a handler is not that it works but that it is *not a
 of doing the thing*. Both of these call the same use case an administrator would, so neither
 can drift into charging a different amount or skipping a check the other applies.
 
-The asymmetry between them is deliberate and documented in the adapters themselves:
-``SessionOpened`` has a real publisher today, so its handler has a ``from_payload`` and can be
-subscribed to a bus; ``OfferAccepted`` has none, so its handler stops at the typed message
-rather than guessing at payload keys.
+Both now have a real publisher, so both carry a ``from_payload`` and can be subscribed to a
+bus. ``OfferAccepted`` waited five phases for its half: Admissions published nothing, and a
+deserialiser written ahead of a publisher is a guess at payload keys that fails at the one
+moment it matters. The keys asserted below are the ones Admissions actually emits.
 """
 
 import pytest
@@ -83,12 +83,70 @@ class TestOfferAccepted:
         assert (first.was_already_open, second.was_already_open) == (False, True)
         assert len(stored.charges) == 2
 
-    def test_has_no_deserialiser_until_admissions_publishes(self) -> None:
-        """Writing one now would mean guessing the payload's keys — a guess that is wrong fails
-        at the one moment it matters. Student Profile made the same call for
-        ``StudentMatriculated``."""
-        assert not hasattr(OfferAcceptedMessage, "from_payload")
-        assert not hasattr(OfferAcceptedHandler, "on_message")
+    def test_reads_the_offer_off_the_payload(self) -> None:
+        """The deserialiser arrived with the publisher, rather than guessing ahead of it."""
+        message = OfferAcceptedMessage.from_payload(
+            {
+                "applicant_id": APPLICANT_ID,
+                "program_id": CSC_PROGRAM_ID,
+                "session_id": SESSION_2026,
+            }
+        )
+        assert message == an_offer()
+
+    def test_a_payload_with_no_level_uses_billing_s_entry_level(self) -> None:
+        """Admissions has no opinion about a level, so no key for one is on the wire."""
+        message = OfferAcceptedMessage.from_payload(
+            {
+                "applicant_id": APPLICANT_ID,
+                "program_id": CSC_PROGRAM_ID,
+                "session_id": SESSION_2026,
+            }
+        )
+        assert message.level == 100
+
+    def test_ignores_fields_a_publisher_adds_later(self) -> None:
+        message = OfferAcceptedMessage.from_payload(
+            {
+                "applicant_id": APPLICANT_ID,
+                "program_id": CSC_PROGRAM_ID,
+                "session_id": SESSION_2026,
+                "applied_program_id": "prog-someone-else",
+                "decided_at": "2026-08-01",
+            }
+        )
+        assert message == an_offer()
+
+    @pytest.mark.parametrize("missing", ["applicant_id", "program_id", "session_id"])
+    def test_a_missing_field_raises_rather_than_defaulting(self, missing: str) -> None:
+        """A ledger opened against a defaulted applicant or program is worse than a delivery
+        that failed loudly."""
+        payload = {
+            "applicant_id": APPLICANT_ID,
+            "program_id": CSC_PROGRAM_ID,
+            "session_id": SESSION_2026,
+        }
+        del payload[missing]
+        with pytest.raises(KeyError):
+            OfferAcceptedMessage.from_payload(payload)
+
+    async def test_on_message_deserialises_then_handles(
+        self,
+        offer_accepted_handler: OfferAcceptedHandler,
+        accounts: AccountRepositoryPort,
+        published_schedule: FeeSchedule,
+    ) -> None:
+        """The signature a bus calls, which is what lets the wiring be one line in the root."""
+        await offer_accepted_handler.on_message(
+            {
+                "applicant_id": APPLICANT_ID,
+                "program_id": CSC_PROGRAM_ID,
+                "session_id": SESSION_2026,
+            }
+        )
+        stored = await accounts.get(APPLICANT_ID)
+        assert stored is not None
+        assert len(stored.charges) == 2
 
 
 class TestSessionOpened:

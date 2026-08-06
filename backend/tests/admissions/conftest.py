@@ -21,8 +21,16 @@ leaked out of the domain layer (CLAUDE.md section 2).
 import pytest
 from tests.conftest import Adapters
 
-from admissions.adapters.outbound import InMemoryProgramInfoAdapter
-from admissions.application import MakeOfferToApplicant, ScreenApplicant, SubmitApplication
+from admissions.adapters.outbound import InMemoryEventBus, InMemoryProgramInfoAdapter
+from admissions.application import (
+    AcceptOffer,
+    DeclineOffer,
+    MakeOfferToApplicant,
+    MatriculateApplicant,
+    RecordAcceptanceFeePaid,
+    ScreenApplicant,
+    SubmitApplication,
+)
 from admissions.ports import (
     AdmissionCycleRepositoryPort,
     AlternativeProgramPolicyRepositoryPort,
@@ -81,3 +89,34 @@ def make_offer_to_applicant(
     policies: AlternativeProgramPolicyRepositoryPort,
 ) -> MakeOfferToApplicant:
     return MakeOfferToApplicant(applicants, cycles, requirements, policies)
+
+
+@pytest.fixture
+def events() -> InMemoryEventBus:
+    """Concrete on purpose, like ``programs``: tests read ``published`` and subscribe, and
+    neither is on ``EventPublisherPort``. The use cases still receive it as the port."""
+    return InMemoryEventBus()
+
+
+@pytest.fixture
+def accept_offer(applicants: ApplicantRepositoryPort, events: InMemoryEventBus) -> AcceptOffer:
+    return AcceptOffer(applicants, events)
+
+
+@pytest.fixture
+def decline_offer(
+    applicants: ApplicantRepositoryPort, cycles: AdmissionCycleRepositoryPort
+) -> DeclineOffer:
+    return DeclineOffer(applicants, cycles)
+
+
+@pytest.fixture
+def matriculate_applicant(
+    applicants: ApplicantRepositoryPort, events: InMemoryEventBus
+) -> MatriculateApplicant:
+    return MatriculateApplicant(applicants, events)
+
+
+@pytest.fixture
+def record_acceptance_fee_paid(applicants: ApplicantRepositoryPort) -> RecordAcceptanceFeePaid:
+    return RecordAcceptanceFeePaid(applicants)

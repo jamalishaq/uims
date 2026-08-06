@@ -7,10 +7,13 @@ another. ``ProgramInfoPort`` asks Faculty & Department whether a program exists 
 admitting, checked at application time (CLAUDE.md section 3), and answers in a type
 defined here rather than there.
 
-Not here yet, and deliberately: the event publisher this context announces
-``OfferAccepted`` and ``StudentMatriculated`` through. Neither event is raised by anything
-built so far — an offer being *made* is not among the two facts Admissions publishes, and
-the acceptance and matriculation flows that do publish them come later.
+``EventPublisherPort`` is how this context announces ``OfferAccepted`` and
+``StudentMatriculated``, the two facts CLAUDE.md section 3 says Admissions publishes. It was
+absent for five phases because neither event had a producer: an offer being *made* is not
+among them, and the acceptance and matriculation flows that do produce them did not exist.
+They exist now, and the two handlers that were waiting on the other side of the bus —
+Billing's ``OfferAcceptedHandler`` and Student Profile's ``StudentMatriculatedHandler`` —
+finally have something to receive.
 """
 
 from admissions.ports.admission_cycle_repository import AdmissionCycleRepositoryPort
@@ -25,6 +28,7 @@ from admissions.ports.errors import (
     PersistenceUnavailableError,
     RepositoryError,
 )
+from admissions.ports.event_publisher import EventPublisherPort
 from admissions.ports.program_info import ProgramInfo, ProgramInfoPort
 
 __all__ = [
@@ -33,6 +37,7 @@ __all__ = [
     "AlternativeProgramPolicyRepositoryPort",
     "ApplicantRepositoryPort",
     "DuplicateAggregateError",
+    "EventPublisherPort",
     "PersistenceUnavailableError",
     "ProgramEntryRequirementRepositoryPort",
     "ProgramInfo",

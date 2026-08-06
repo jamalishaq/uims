@@ -16,7 +16,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from admissions.application.accept_offer import OfferTakenUp
+from admissions.application.decline_offer import OfferDeclined
 from admissions.application.make_offer_to_applicant import NoOfferAvailable, OfferMade
+from admissions.application.matriculate_applicant import ApplicantMatriculated
 from admissions.application.screen_applicant import ApplicantNotQualified, ApplicantQualified
 from admissions.application.views import ApplicantView, UtmeSubjectScoreView
 
@@ -151,3 +154,53 @@ class NoOfferAvailableResponse(BaseModel):
 
 OfferResponse = OfferMadeResponse | NoOfferAvailableResponse
 """Both ways an offer decision can end, tagged by ``outcome``."""
+
+
+class OfferTakenUpResponse(BaseModel):
+    """The applicant accepted, and their ledger has been opened.
+
+    Not a discriminated union, unlike the two above: accepting has one ending. Every other
+    way this request can go is a refusal by the aggregate, and those leave as 4xx.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+
+    @classmethod
+    def of(cls, taken_up: OfferTakenUp) -> "OfferTakenUpResponse":
+        return cls(**vars(taken_up))
+
+
+class OfferDeclinedResponse(BaseModel):
+    """The applicant turned the place down, and the cycle has it back.
+
+    ``places_remaining`` is the figure the decline actually moved, reported because a
+    registrar watching a program fill up is watching exactly this number.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+    places_remaining: int
+
+    @classmethod
+    def of(cls, declined: OfferDeclined) -> "OfferDeclinedResponse":
+        return cls(**vars(declined))
+
+
+class ApplicantMatriculatedResponse(BaseModel):
+    """The application is closed and a student exists.
+
+    No matric number, because this context never learns it — issuing one is Student Profile's
+    job and nothing is published back (CLAUDE.md section 3). A client that needs the number
+    reads it from Student Profile, which is the context that owns it.
+    """
+
+    applicant_id: str
+    program_id: str
+    session_id: str
+
+    @classmethod
+    def of(cls, matriculated: ApplicantMatriculated) -> "ApplicantMatriculatedResponse":
+        return cls(**vars(matriculated))

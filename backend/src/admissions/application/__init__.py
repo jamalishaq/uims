@@ -22,6 +22,8 @@ the offer flow hands back when every program the applicant could go to was full.
 here mean a use case could not do its job; outcomes mean it did, and the answer was no.
 """
 
+from admissions.application.accept_offer import AcceptOffer, AcceptOfferCommand, OfferTakenUp
+from admissions.application.decline_offer import DeclineOffer, DeclineOfferCommand, OfferDeclined
 from admissions.application.errors import (
     AdmissionCycleNotFoundError,
     ApplicantNotFoundError,
@@ -37,6 +39,16 @@ from admissions.application.make_offer_to_applicant import (
     OfferDecision,
     OfferMade,
 )
+from admissions.application.matriculate_applicant import (
+    ApplicantMatriculated,
+    MatriculateApplicant,
+    MatriculateApplicantCommand,
+)
+from admissions.application.record_acceptance_fee_paid import (
+    AcceptanceFeeRecorded,
+    RecordAcceptanceFeePaid,
+    RecordAcceptanceFeePaidCommand,
+)
 from admissions.application.screen_applicant import (
     ApplicantNotQualified,
     ApplicantQualified,
@@ -48,20 +60,32 @@ from admissions.application.submit_application import SubmitApplication, SubmitA
 from admissions.application.views import ApplicantView, UtmeSubjectScoreView
 
 __all__ = [
+    "AcceptOffer",
+    "AcceptOfferCommand",
+    "AcceptanceFeeRecorded",
     "AdmissionCycleNotFoundError",
+    "ApplicantMatriculated",
     "ApplicantNotFoundError",
     "ApplicantNotQualified",
     "ApplicantQualified",
     "ApplicantView",
     "ApplicationError",
+    "DeclineOffer",
+    "DeclineOfferCommand",
     "EntryRequirementNotFoundError",
     "MakeOfferToApplicant",
     "MakeOfferToApplicantCommand",
+    "MatriculateApplicant",
+    "MatriculateApplicantCommand",
     "NoOfferAvailable",
     "OfferDecision",
+    "OfferDeclined",
     "OfferMade",
+    "OfferTakenUp",
     "ProgramNotAdmittingError",
     "ProgramNotFoundError",
+    "RecordAcceptanceFeePaid",
+    "RecordAcceptanceFeePaidCommand",
     "ScreenApplicant",
     "ScreenApplicantCommand",
     "ScreeningOutcome",

@@ -1,10 +1,17 @@
-"""HTTP routes for Admissions: apply, screen, and decide an offer.
+"""HTTP routes for Admissions: apply, screen, decide an offer, answer it, matriculate.
 
-Three routes for the three use cases that exist. There is no accept-offer route and no
-matriculate route, and that is not an oversight of this phase: ``Applicant.accept()`` and
-``Applicant.matriculate()`` are domain methods with no use case in front of them, and CLAUDE.md
-section 3 is explicit that matriculation "is a human-triggered use case that checks the flag".
-Writing the route would mean writing the use case, which is a different change.
+Six routes covering an application's whole life. The three that arrived last —
+acceptance, declination, matriculation — close a chain that used to stop dead after the
+offer decision: with nothing able to accept, ``OfferAccepted`` was never published, no
+ledger was ever opened, and no applicant could become a student.
+
+**There is no reject route, and that is a decision rather than a gap.** An application ends
+without a place exactly two ways, both automatic: screening finds the applicant unqualified,
+or every cycle in the fallback chain is full. ``record_no_offer()`` is reachable only from
+those two flows, so a registrar cannot turn down somebody the rules would have admitted.
+
+**Accepting and declining are the applicant's own acts**, which is why neither route names an
+actor. ``decline()`` is terminal, and an offer let go by the wrong hand cannot be given back.
 """
 
 from typing import Annotated
@@ -12,19 +19,28 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 
 from admissions.adapters.inbound.http.schemas import (
+    ApplicantMatriculatedResponse,
     ApplicantNotQualifiedResponse,
     ApplicantQualifiedResponse,
     ApplicantResponse,
     NoOfferAvailableResponse,
+    OfferDeclinedResponse,
     OfferMadeResponse,
     OfferResponse,
+    OfferTakenUpResponse,
     ScreeningResponse,
     SubmitApplicationRequest,
 )
+from admissions.application.accept_offer import AcceptOffer, AcceptOfferCommand
+from admissions.application.decline_offer import DeclineOffer, DeclineOfferCommand
 from admissions.application.make_offer_to_applicant import (
     MakeOfferToApplicant,
     MakeOfferToApplicantCommand,
     OfferMade,
+)
+from admissions.application.matriculate_applicant import (
+    MatriculateApplicant,
+    MatriculateApplicantCommand,
 )
 from admissions.application.screen_applicant import (
     ApplicantQualified,
@@ -47,10 +63,16 @@ class AdmissionsDependencies:
         submit_application: SubmitApplication,
         screen_applicant: ScreenApplicant,
         make_offer_to_applicant: MakeOfferToApplicant,
+        accept_offer: AcceptOffer,
+        decline_offer: DeclineOffer,
+        matriculate_applicant: MatriculateApplicant,
     ) -> None:
         self.submit_application = submit_application
         self.screen_applicant = screen_applicant
         self.make_offer_to_applicant = make_offer_to_applicant
+        self.accept_offer = accept_offer
+        self.decline_offer = decline_offer
+        self.matriculate_applicant = matriculate_applicant
 
 
 def _deps(request: Request) -> AdmissionsDependencies:
@@ -123,6 +145,67 @@ async def make_offer_to_applicant(applicant_id: str, deps: Deps) -> OfferRespons
     if isinstance(decision, OfferMade):
         return OfferMadeResponse.of(decision)
     return NoOfferAvailableResponse.of(decision)
+
+
+@router.post(
+    "/applicants/{applicant_id}/acceptance",
+    status_code=status.HTTP_201_CREATED,
+    response_model=OfferTakenUpResponse,
+    summary="Accept an offer",
+    responses=error_responses(404, 409, 422, 500, 503),
+)
+async def accept_offer(applicant_id: str, deps: Deps) -> OfferTakenUpResponse:
+    """Take up the offered place. This is what opens the applicant's ledger.
+
+    201 rather than 200: acceptance creates something that did not exist before — an account
+    in Billing, with both admission charges raised against it.
+
+    **Unauthenticated in this phase.** Anybody who can reach the process can accept on
+    anybody's behalf, and the counterpart declination is terminal. Identity closes this.
+    """
+    taken_up = await deps.accept_offer.execute(AcceptOfferCommand(applicant_id=applicant_id))
+    return OfferTakenUpResponse.of(taken_up)
+
+
+@router.post(
+    "/applicants/{applicant_id}/declination",
+    response_model=OfferDeclinedResponse,
+    summary="Decline an offer, returning the place to the quota",
+    responses=error_responses(404, 409, 422, 500, 503),
+)
+async def decline_offer(applicant_id: str, deps: Deps) -> OfferDeclinedResponse:
+    """Turn the place down. Terminal for the applicant, and the cycle gets the place back.
+
+    200 rather than 201: nothing is created. What changes is a count on a cycle that already
+    existed, and the response reports it.
+
+    **Unauthenticated in this phase**, and this is the route where that matters most: an
+    offer declined cannot be un-declined.
+    """
+    declined = await deps.decline_offer.execute(DeclineOfferCommand(applicant_id=applicant_id))
+    return OfferDeclinedResponse.of(declined)
+
+
+@router.post(
+    "/applicants/{applicant_id}/matriculation",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ApplicantMatriculatedResponse,
+    summary="Matriculate an accepted, fee-cleared applicant",
+    responses=error_responses(404, 409, 422, 500, 503),
+)
+async def matriculate_applicant(applicant_id: str, deps: Deps) -> ApplicantMatriculatedResponse:
+    """Turn the applicant into a student. Human-triggered, never automatic on payment.
+
+    201, because a student now exists in Student Profile with a matric number issued.
+
+    The acceptance fee gates this and an outstanding matriculation fee does not — CLAUDE.md
+    section 4, and the aggregate enforces it rather than this route. A 409 here means the
+    applicant has not accepted, or the gating fee has not cleared.
+    """
+    matriculated = await deps.matriculate_applicant.execute(
+        MatriculateApplicantCommand(applicant_id=applicant_id)
+    )
+    return ApplicantMatriculatedResponse.of(matriculated)
 
 
 __all__ = ["STATE_KEY", "AdmissionsDependencies", "router"]

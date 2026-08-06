@@ -25,6 +25,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = [
+    "src/event_bus.py",
     "src/http_api.py",
     "src/main.py",
     "src/persistence.py",
@@ -39,6 +40,10 @@ packages = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# ``tests`` is a plain directory rather than a package, so pytest imports its conftest as a
+# top-level module and never puts this directory on the path. The per-context conftests all
+# say ``from tests.conftest import Adapters`` to reach the composition root, which needs it.
+pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "-q"
 asyncio_mode = "auto"

@@ -176,3 +176,51 @@ class TestQuotaExhaustedIsAnOutcome:
         assert outcome == OfferRecorded(
             program_id=PROGRAM_ID, session_id=SESSION_ID, offers_made=7, quota=10
         )
+
+
+class TestReleasingAPlace:
+    """A declined offer gives its place back, which is the decision this counterpart encodes.
+
+    Confirmed institutional fact (CLAUDE.md section 6): ``offers_made`` counts places *held*,
+    not offers ever posted. Without the release a program under-admits by exactly its decline
+    rate, and with offers made automatically there is no officer working the list who would
+    notice.
+    """
+
+    def test_a_released_place_is_available_again(self) -> None:
+        cycle = a_cycle(quota=3, offers_made=2)
+
+        cycle.release()
+
+        assert (cycle.offers_made, cycle.places_remaining) == (1, 2)
+
+    def test_a_full_cycle_offers_again_once_a_place_comes_back(self) -> None:
+        """The point of the whole exercise: the freed place reaches the next candidate."""
+        cycle = a_full_cycle(quota=1)
+        assert isinstance(cycle.offer(), QuotaExhausted)
+
+        cycle.release()
+
+        assert isinstance(cycle.offer(), OfferRecorded)
+
+    def test_releasing_every_place_empties_the_cycle(self) -> None:
+        cycle = a_full_cycle(quota=3)
+
+        for _ in range(3):
+            cycle.release()
+
+        assert (cycle.offers_made, cycle.is_full) == (0, False)
+
+    def test_releasing_a_place_nobody_holds_is_refused(self) -> None:
+        """Not an outcome like ``QuotaExhausted``: there is no second answer to give. A cycle
+        asked for a place it never claimed has a caller that lost track of who holds what,
+        and flooring silently at zero would turn that into a quota that quietly grew."""
+        with pytest.raises(InvalidOffersMadeError, match=PROGRAM_ID):
+            a_cycle(quota=3).release()
+
+    def test_releasing_never_raises_the_quota(self) -> None:
+        cycle = a_cycle(quota=2, offers_made=1)
+
+        cycle.release()
+
+        assert cycle.quota == 2
