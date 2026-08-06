@@ -14,6 +14,9 @@ for. If you are adding a page, find the route first.
 - Node.js 18+
 - npm 9+
 
+Or Docker, and none of the above: `docker compose up` at the repository root runs this app, the
+API and Postgres together. See *Docker* below.
+
 ---
 
 ## Setup
@@ -52,6 +55,31 @@ npm run preview    # preview production build locally
 npm test           # Vitest, watch mode
 npm run coverage   # coverage report
 ```
+
+---
+
+## Docker
+
+From the repository root, not here:
+
+```bash
+docker compose up                # this app on :5173, the API on :8000, Postgres on :5432
+docker compose up frontend       # just this app and what it depends on
+docker compose build frontend    # after a package.json change
+```
+
+Three things about this setup are worth knowing before the first surprise:
+
+- **`VITE_API_BASE_URL` stays `http://localhost:8000`, not `http://backend:8000`.** The requests
+  are made by your browser, which is on the host; `backend` is a name that resolves only inside
+  the compose network. It is set in `docker-compose.yaml` and needs no `.env` here.
+- **`node_modules` is the container's, not yours.** The bind mount would otherwise cover the
+  image's Linux-built tree with the host's Windows-built one, so an anonymous volume is mounted
+  at `/app/node_modules` to keep it. A new dependency therefore needs
+  `docker compose build frontend` — installing it on the host is invisible to the container.
+- **HMR runs on a polling watcher** (`VITE_USE_POLLING`, read by `vite.config.js`). Bind mounts
+  from Windows into a Linux container deliver no filesystem events, and without polling a save
+  would simply never reach the browser. Running `npm run dev` directly does not poll.
 
 ---
 

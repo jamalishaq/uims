@@ -1,0 +1,97 @@
+# The whole system, from the repository root: Postgres, the API, and the frontend dev server.
+#
+#     docker compose up
+#
+# This is a development stack and says so in three places — the backend runs uvicorn's reloader,
+# the frontend runs Vite rather than a built bundle, and the database publishes 5432 with a
+# password written in this file. None of it is meant to be reachable from anywhere but this
+# machine.
+#
+# Each service names its container explicitly (`uims-db`, `uims-backend`, `uims-frontend`)
+# rather than taking compose's generated `uims-<service>-1`. That makes `docker logs uims-db`
+# and `docker exec -it uims-backend sh` stable to type and stable across recreations. The cost
+# is that these services cannot be scaled — `docker compose up --scale backend=2` fails, since
+# two containers cannot hold one name — which is the right trade for a development stack that
+# would not survive two API processes on one published port anyway.
+name: uims
+
+services:
+  db:
+    container_name: uims-db
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ums
+    ports:
+      # Published so the host's tooling reaches the same database the API does: `uv run pytest`
+      # with UMS_TEST_BACKEND=postgres, psql, a GUI client.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Postgres accepts TCP connections a moment before it is ready to answer, and the API has no
+    # startup retry — its engine is built in the lifespan and the first request is expected to
+    # work. Without this, `up` on a cold machine is a race the backend usually loses.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ums"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    container_name: uims-backend
+    build:
+      context: ./backend
+      target: dev
+    # backend/.env is the one source of truth for secrets, shared with `uv run uvicorn` on the
+    # host. It must exist: `cp backend/.env.example backend/.env`. JWT_SECRET_KEY,
+    # PAYSTACK_SECRET_KEY and DEPARTMENT_NUMERIC_CODES come from there, and the composition root
+    # refuses to start naming whichever is missing.
+    #
+    # ALLOWED_ORIGINS must contain http://localhost:5173 for the frontend below, or the browser
+    # will not send the refresh cookie and every session ends after thirty minutes.
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides the file's value, which points at localhost for the host-run case. Inside the
+      # container `localhost` is the container, and `db` is this compose network's Postgres.
+      DATABASE_URL: postgresql+asyncpg://user:password@db:5432/ums
+      # A bind mount from a Windows host into a Linux container delivers no inotify events, so
+      # the reloader would watch a directory it never hears about. Polling is the only thing
+      # that works across that boundary.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mounted over the image's copy, with PYTHONPATH pointing here — see backend/Dockerfile.
+      - ./backend/src:/app/src
+      - ./backend/scripts:/app/scripts
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    container_name: uims-frontend
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      # The origin the *browser* uses, not the one this container would. Requests to the API are
+      # made by the user's browser on the host, where the API is localhost:8000; `backend:8000`
+      # resolves only inside this network and would fail in the one place it is read.
+      VITE_API_BASE_URL: http://localhost:8000
+      # Same inotify problem as the backend. Read by vite.config.js.
+      VITE_USE_POLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # An anonymous volume whose only job is to sit on top of the bind mount at exactly this
+      # path, so the image's Linux-built node_modules survives instead of being hidden by the
+      # host's Windows-built one.
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

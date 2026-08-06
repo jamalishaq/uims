@@ -1,0 +1,9 @@
+# node_modules above all: the host's tree is built for Windows and any native binding in it is
+# the wrong architecture for a Linux container. The image installs its own in the `deps` stage,
+# and docker-compose.yaml keeps the bind mount from covering it back up.
+node_modules/
+dist/
+.env
+.env.local
+.git/
+npm-debug.log*

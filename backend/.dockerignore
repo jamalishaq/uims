@@ -1,0 +1,13 @@
+# Everything here is either a secret, a host-specific build artefact, or bulk that makes the
+# build context slower to send for no gain. `__pycache__` earns its line twice over: this
+# working tree keeps stale ones from other branches (a `src/identity/__pycache__` survives a
+# checkout that removed `src/identity` itself), and copying those into an image would ship
+# bytecode for modules that are not there.
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+tests/

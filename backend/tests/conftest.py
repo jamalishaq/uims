@@ -38,7 +38,8 @@ MEMORY = "memory"
 POSTGRES = "postgres"
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/ums"
-"""What ``docker compose up -d db`` in ``backend/`` gives you, so the common case needs no env."""
+"""What ``docker compose up -d db`` at the repository root gives you, so the common case needs
+no env. The port is published, so this reaches the same database the containers use."""
 
 ALL_METADATA = (
     academic_records_metadata,
