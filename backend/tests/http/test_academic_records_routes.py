@@ -62,8 +62,19 @@ async def _register_course(
 
 
 async def _submit(
-    client: AsyncClient, api: str, course_id: str, score: int, semester_id: str = "sem-1"
+    client: AsyncClient,
+    api: str,
+    as_lecturer,
+    course_id: str,
+    score: int,
+    semester_id: str = "sem-1",
 ) -> None:
+    """Submit a grade as ``lec-1``, who is the lecturer these fixtures assign to the course.
+
+    The lecturer's own token, not the suite's university one: ``security.Lecturer`` admits no
+    university fallback, because the domain check behind this route asks whether *this lecturer*
+    teaches the course and a university principal could never satisfy it.
+    """
     response = await client.post(
         f"{api}/faculty-department/grade-submissions",
         json={
@@ -74,6 +85,7 @@ async def _submit(
             "semester_id": semester_id,
             "score": score,
         },
+        headers=as_lecturer("lec-1"),
     )
     assert response.status_code == 201, response.text
 
@@ -85,14 +97,14 @@ class TestReadingARecord:
         assert response.json()["error"] == "AcademicRecordNotFoundError"
 
     async def test_a_cgpa_is_weighted_by_the_credit_units_the_catalog_supplied(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """A 3-unit A and a 1-unit F: (5.0*3 + 0.0*1) / 4 = 3.75, not the unweighted 2.5."""
         await _seed_calendar_and_lecturer(repos, ("csc101", "csc102"))
         await _register_course(client, api, "csc101", credit_units=3)
         await _register_course(client, api, "csc102", credit_units=1)
-        await _submit(client, api, "csc101", 78)
-        await _submit(client, api, "csc102", 20)
+        await _submit(client, api, as_lecturer, "csc101", 78)
+        await _submit(client, api, as_lecturer, "csc102", 20)
 
         body = (await client.get(f"{api}/academic-records/records/stu-1")).json()
         assert body["cgpa"] == "3.75"
@@ -101,23 +113,23 @@ class TestReadingARecord:
         assert body["passed_course_ids"] == ["csc101"]
 
     async def test_a_cgpa_below_the_threshold_is_probation(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """The confirmed threshold is 1.50, judged on the reported two-decimal figure."""
         await _seed_calendar_and_lecturer(repos, ("csc101",))
         await _register_course(client, api, "csc101", credit_units=3)
-        await _submit(client, api, "csc101", 45)
+        await _submit(client, api, as_lecturer, "csc101", 45)
 
         body = (await client.get(f"{api}/academic-records/records/stu-1")).json()
         assert body["cgpa"] == "2.00"
         assert body["standing"] == "good standing"
 
     async def test_every_number_crosses_as_a_string(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         await _seed_calendar_and_lecturer(repos, ("csc101",))
         await _register_course(client, api, "csc101", credit_units=3)
-        await _submit(client, api, "csc101", 78)
+        await _submit(client, api, as_lecturer, "csc101", 78)
 
         body = (await client.get(f"{api}/academic-records/records/stu-1")).json()
         assert isinstance(body["cgpa"], str)
@@ -126,13 +138,13 @@ class TestReadingARecord:
         assert all(isinstance(gpa, str) for gpa in body["semester_gpas"].values())
 
     async def test_every_attempt_counts_and_none_is_replaced(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """The confirmed carry-over rule: a course failed and later passed is two lines."""
         await _seed_calendar_and_lecturer(repos, ("csc101",))
         await _register_course(client, api, "csc101", credit_units=3)
-        await _submit(client, api, "csc101", 30, semester_id="sem-1")
-        await _submit(client, api, "csc101", 70, semester_id="sem-2")
+        await _submit(client, api, as_lecturer, "csc101", 30, semester_id="sem-1")
+        await _submit(client, api, as_lecturer, "csc101", 70, semester_id="sem-2")
 
         body = (await client.get(f"{api}/academic-records/records/stu-1")).json()
         assert len(body["grades"]) == 2, "both attempts stay on the transcript"
@@ -143,11 +155,11 @@ class TestReadingARecord:
 
 class TestCorrectingAGrade:
     async def test_a_correction_changes_the_mark_and_leaves_an_audit_entry(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         await _seed_calendar_and_lecturer(repos, ("csc101",))
         await _register_course(client, api, "csc101", credit_units=3)
-        await _submit(client, api, "csc101", 45)
+        await _submit(client, api, as_lecturer, "csc101", 45)
 
         response = await client.post(
             f"{api}/academic-records/records/stu-1/corrections",
@@ -194,11 +206,11 @@ class TestCorrectingAGrade:
         assert response.json()["error"] == "RequestValidationError"
 
     async def test_a_correction_to_a_grade_nobody_recorded_is_a_conflict(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         await _seed_calendar_and_lecturer(repos, ("csc101",))
         await _register_course(client, api, "csc101", credit_units=3)
-        await _submit(client, api, "csc101", 45)
+        await _submit(client, api, as_lecturer, "csc101", 45)
 
         response = await client.post(
             f"{api}/academic-records/records/stu-1/corrections",

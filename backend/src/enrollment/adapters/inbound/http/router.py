@@ -13,6 +13,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
+import security
 from enrollment.adapters.inbound.http.schemas import (
     RegisterForCourseRequest,
     RegistrationAcceptedResponse,
@@ -51,16 +52,28 @@ router = APIRouter(prefix="/enrollment", tags=["enrollment"])
     "/registrations",
     response_model=RegistrationResponse,
     summary="Register a student for a course",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def register_for_course(body: RegisterForCourseRequest, deps: Deps) -> RegistrationResponse:
+async def register_for_course(
+    body: RegisterForCourseRequest,
+    principal: security.Authenticated,
+    deps: Deps,
+) -> RegistrationResponse:
     """Register, or explain why not.
 
     **Both answers are 200.** A refusal is a decision the university made about a request it
     understood, not a malformed request, and the body says which happened in ``outcome``.
     A 4xx would also have to choose one status for a refusal that can have four separate
     causes at once.
+
+    **A student may only register themselves**, and a registrar may register anybody in the
+    university. The check is against the ``student_id`` in the body rather than against
+    anything on the token, which is section 6's rule working as intended: the scope arrived as
+    an explicit parameter, and the token narrowed what the parameter was allowed to say. A
+    route that read the student off the token instead would have been unable to serve the
+    registrar at all.
     """
+    principal.require_owner(body.student_id)
     outcome = await deps.register_for_course.execute(
         RegisterForCourseCommand.of(**body.model_dump())
     )

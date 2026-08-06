@@ -1,11 +1,12 @@
 [project]
 name = "ums"
 version = "0.1.0"
-description = "University Management System — hexagonal, seven bounded contexts"
+description = "University Management System — hexagonal, eight bounded contexts"
 requires-python = ">=3.12"
 dependencies = [
     "asyncpg>=0.30",
     "fastapi>=0.115",
+    "pyjwt>=2.9",
     "sqlalchemy[asyncio]>=2.0",
     "tenacity>=9.0",
     "uvicorn[standard]>=0.32",
@@ -29,12 +30,14 @@ packages = [
     "src/http_api.py",
     "src/main.py",
     "src/persistence.py",
+    "src/security.py",
     "src/academic_records",
     "src/admissions",
     "src/billing",
     "src/course_catalog",
     "src/enrollment",
     "src/faculty_department",
+    "src/identity",
     "src/student_profile",
 ]
 

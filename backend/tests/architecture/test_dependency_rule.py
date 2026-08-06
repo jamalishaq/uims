@@ -37,18 +37,19 @@ EXPECTED_CONTEXTS = frozenset(
         "course_catalog",
         "enrollment",
         "faculty_department",
+        "identity",
         "student_profile",
     }
 )
 
 COMPOSITION_ROOT = frozenset({"main"})
-"""The one module allowed to know all seven contexts, named by exact name.
+"""The one module allowed to know all eight contexts, named by exact name.
 
 A composition root that could not import the contexts it composes would not be one. Somebody
 has to introduce Faculty & Department's publisher to Billing's handler, and hand Enrollment an
 adapter that reads Course Catalog, and neither context may import the other — so the job falls
 to a module outside all of them. ``tests/conftest.py`` has made exactly this argument since
-Phase 6.1 ("a module that imported all seven would be a module importing six contexts it has no
+Phase 6.1 ("a module that imported all eight would be a module importing seven contexts it has no
 business knowing about. A composition root may; that is what makes it one"); this is the same
 claim, now that the root has moved into ``src/`` to be served by uvicorn.
 

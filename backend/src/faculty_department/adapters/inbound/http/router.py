@@ -19,6 +19,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+import security
 from faculty_department.adapters.inbound.http.schemas import (
     AmendLecturerProfileRequest,
     AssignLecturerToCourseRequest,
@@ -146,15 +147,26 @@ router = APIRouter(prefix="/faculty-department", tags=["faculty-department"])
     status_code=status.HTTP_201_CREATED,
     response_model=GradeSubmittedResponse,
     summary="Submit a grade for a student on a course",
-    responses=error_responses(403, 404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def submit_grade(body: SubmitGradeRequest, deps: Deps) -> GradeSubmittedResponse:
+async def submit_grade(
+    body: SubmitGradeRequest, principal: security.Lecturer, deps: Deps
+) -> GradeSubmittedResponse:
     """Record a lecturer's mark and announce it.
 
     Publishing ``GradeSubmitted`` is part of the use case, so by the time this returns Academic
     Records has already consumed it — the bus is synchronous and a subscriber's failure is not
     swallowed. A 201 here therefore means the transcript line exists too.
+
+    **Two authorization checks stand in front of this, and both are wanted.** The route checks
+    the ``lecturer_id`` in the body against the token, so nobody submits a grade as somebody
+    else. The *domain* then checks ``lecturer.is_assigned_to(course)``, so a lecturer cannot
+    grade a course they do not teach. Section 6 states the rule the split follows —
+    authorization lives in the domain when the deciding context owns the data the check reads,
+    and at the edge when it does not — and neither check makes the other redundant: the token
+    proves who, the assignment proves what.
     """
+    principal.require_owner(body.lecturer_id)
     event = await deps.submit_grade.execute(SubmitGradeCommand(**body.model_dump()))
     return GradeSubmittedResponse.of(GradeSubmittedView.of(event))
 
@@ -163,11 +175,12 @@ async def submit_grade(body: SubmitGradeRequest, deps: Deps) -> GradeSubmittedRe
     "/programs/{program_id}/placement",
     response_model=ProgramPlacementResponse,
     summary="Read where a program sits, for one session",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def read_program_placement(
     program_id: str,
     session_id: Annotated[str, Query(description="The session the question is asked about.")],
+    principal: security.Authenticated,
     deps: Deps,
 ) -> ProgramPlacementResponse:
     """The program, its department and the session, joined.
@@ -193,9 +206,11 @@ async def read_program_placement(
     status_code=status.HTTP_201_CREATED,
     response_model=FacultyResponse,
     summary="Create a faculty",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
-async def create_faculty(body: CreateFacultyRequest, deps: Deps) -> FacultyResponse:
+async def create_faculty(
+    body: CreateFacultyRequest, principal: security.University, deps: Deps
+) -> FacultyResponse:
     """The top of the structure. Departments reference it by id."""
     faculty = await deps.create_faculty.execute(
         CreateFacultyCommand(faculty_id=body.faculty_id, name=body.name, code=body.code)
@@ -208,11 +223,20 @@ async def create_faculty(body: CreateFacultyRequest, deps: Deps) -> FacultyRespo
     status_code=status.HTTP_201_CREATED,
     response_model=DepartmentResponse,
     summary="Create a department in a faculty",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def create_department(body: CreateDepartmentRequest, deps: Deps) -> DepartmentResponse:
+async def create_department(
+    body: CreateDepartmentRequest, principal: security.Faculty, deps: Deps
+) -> DepartmentResponse:
     """A 404 means the faculty does not exist — checked so a typo cannot become a department
-    hanging off nothing, which would surface later as a placement that cannot be read."""
+    hanging off nothing, which would surface later as a placement that cannot be read.
+
+    Scoped to the faculty named in the body: a faculty officer creates departments inside their
+    own faculty and no other. This is one of the few scope checks in the system that can be made
+    honestly, because the request carries the faculty id outright — no lookup is needed to know
+    which unit is being acted on.
+    """
+    principal.require_scope(security.ScopeKind.FACULTY, body.faculty_id)
     department = await deps.create_department.execute(
         CreateDepartmentCommand(
             department_id=body.department_id,
@@ -229,11 +253,14 @@ async def create_department(body: CreateDepartmentRequest, deps: Deps) -> Depart
     status_code=status.HTTP_201_CREATED,
     response_model=ProgramResponse,
     summary="Create a program in a department",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def create_program(body: CreateProgramRequest, deps: Deps) -> ProgramResponse:
+async def create_program(
+    body: CreateProgramRequest, principal: security.Department, deps: Deps
+) -> ProgramResponse:
     """Created **not admitting**. Opening the window is a separate decision, so a program
     cannot start taking applications as a side effect of being described."""
+    principal.require_scope(security.ScopeKind.DEPARTMENT, body.department_id)
     program = await deps.create_program.execute(
         CreateProgramCommand(
             program_id=body.program_id,
@@ -249,10 +276,13 @@ async def create_program(body: CreateProgramRequest, deps: Deps) -> ProgramRespo
     "/programs/{program_id}/admissions",
     response_model=ProgramResponse,
     summary="Open or close a program's admissions window",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def set_program_admissions(
-    program_id: str, body: SetProgramAdmissionsRequest, deps: Deps
+    program_id: str,
+    body: SetProgramAdmissionsRequest,
+    principal: security.Department,
+    deps: Deps,
 ) -> ProgramResponse:
     """``PUT`` because it sets a state rather than requesting a transition: asking for a
     program to be admitting when it already is succeeds and changes nothing.
@@ -271,9 +301,11 @@ async def set_program_admissions(
     "/departments/{department_id}/programs",
     response_model=ProgramListResponse,
     summary="List a department's programs",
-    responses=error_responses(422, 500, 503),
+    responses=error_responses(401, 403, 422, 500, 503),
 )
-async def list_department_programs(department_id: str, deps: Deps) -> ProgramListResponse:
+async def list_department_programs(
+    department_id: str, principal: security.Authenticated, deps: Deps
+) -> ProgramListResponse:
     """The inverse of the placement read, and how a client relates people to a department.
 
     An ``Applicant`` carries programs and never a department. A caller wanting "my
@@ -299,9 +331,11 @@ async def list_department_programs(department_id: str, deps: Deps) -> ProgramLis
     status_code=status.HTTP_201_CREATED,
     response_model=SessionResponse,
     summary="Plan an academic session",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
-async def plan_session(body: PlanSessionRequest, deps: Deps) -> SessionResponse:
+async def plan_session(
+    body: PlanSessionRequest, principal: security.University, deps: Deps
+) -> SessionResponse:
     """Describe a session before it starts. Nothing is charged and nothing is announced."""
     session = await deps.plan_session.execute(
         PlanSessionCommand(
@@ -320,9 +354,11 @@ async def plan_session(body: PlanSessionRequest, deps: Deps) -> SessionResponse:
     "/sessions/{session_id}/opening",
     response_model=SessionResponse,
     summary="Open a planned session",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def open_session(session_id: str, deps: Deps) -> SessionResponse:
+async def open_session(
+    session_id: str, principal: security.University, deps: Deps
+) -> SessionResponse:
     """**This bills a cohort.** Opening publishes ``SessionOpened``, and Billing charges every
     active account what the session's fee schedule says its program and level costs.
 
@@ -344,13 +380,16 @@ async def open_session(session_id: str, deps: Deps) -> SessionResponse:
     status_code=status.HTTP_201_CREATED,
     response_model=LecturerResponse,
     summary="Register a lecturer in a department",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def register_lecturer(body: RegisterLecturerRequest, deps: Deps) -> LecturerResponse:
+async def register_lecturer(
+    body: RegisterLecturerRequest, principal: security.Department, deps: Deps
+) -> LecturerResponse:
     """The other half of ``SubmitGrade``'s authorization, which asks a stored lecturer whether
     they teach the course. Created teaching nothing: who teaches what is decided again every
     session and moves separately.
     """
+    principal.require_scope(security.ScopeKind.DEPARTMENT, body.department_id)
     lecturer = await deps.register_lecturer.execute(
         RegisterLecturerCommand(
             lecturer_id=body.lecturer_id,
@@ -365,9 +404,11 @@ async def register_lecturer(body: RegisterLecturerRequest, deps: Deps) -> Lectur
     "/lecturers/{lecturer_id}",
     response_model=LecturerResponse,
     summary="Read a lecturer",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def read_lecturer(lecturer_id: str, deps: Deps) -> LecturerResponse:
+async def read_lecturer(
+    lecturer_id: str, principal: security.Authenticated, deps: Deps
+) -> LecturerResponse:
     """Their staff record and every course they teach, across sessions."""
     lecturer = await deps.read_lecturer.find(lecturer_id)
     if lecturer is None:
@@ -382,9 +423,11 @@ async def read_lecturer(lecturer_id: str, deps: Deps) -> LecturerResponse:
     "/departments/{department_id}/lecturers",
     response_model=LecturerListResponse,
     summary="List a department's lecturers",
-    responses=error_responses(422, 500, 503),
+    responses=error_responses(401, 403, 422, 500, 503),
 )
-async def list_department_lecturers(department_id: str, deps: Deps) -> LecturerListResponse:
+async def list_department_lecturers(
+    department_id: str, principal: security.Authenticated, deps: Deps
+) -> LecturerListResponse:
     """The staff half of a departmental view, beside the programs list.
 
     A department nobody has is an empty list, not a 404: the use case raises nothing, and an
@@ -402,16 +445,20 @@ async def list_department_lecturers(department_id: str, deps: Deps) -> LecturerL
     "/lecturers/{lecturer_id}/profile",
     response_model=LecturerResponse,
     summary="Amend a lecturer's rank, employment status and qualifications",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def amend_lecturer_profile(
-    lecturer_id: str, body: AmendLecturerProfileRequest, deps: Deps
+    lecturer_id: str,
+    body: AmendLecturerProfileRequest,
+    principal: security.Authenticated,
+    deps: Deps,
 ) -> LecturerResponse:
     """``PUT`` because it replaces the staff record: omitted fields clear.
 
     Not a promotion. Nothing records that a rank changed, when, or on whose authority — a
     promotion history is a different aggregate and nobody has asked for one.
     """
+    principal.require_owner(lecturer_id)
     lecturer = await deps.amend_lecturer_profile.execute(
         AmendLecturerProfileCommand(
             lecturer_id=lecturer_id,
@@ -436,10 +483,14 @@ async def amend_lecturer_profile(
     status_code=status.HTTP_201_CREATED,
     response_model=LecturerResponse,
     summary="Assign a lecturer to a course for a session",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
 async def assign_lecturer_to_course(
-    lecturer_id: str, course_id: str, body: AssignLecturerToCourseRequest, deps: Deps
+    lecturer_id: str,
+    course_id: str,
+    body: AssignLecturerToCourseRequest,
+    principal: security.Department,
+    deps: Deps,
 ) -> LecturerResponse:
     """What makes ``SubmitGrade`` reachable: it authorizes against exactly this.
 
@@ -463,12 +514,13 @@ async def assign_lecturer_to_course(
     "/lecturers/{lecturer_id}/courses/{course_id}",
     response_model=LecturerResponse,
     summary="Withdraw a lecturer from a course for a session",
-    responses=error_responses(403, 404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def withdraw_lecturer_from_course(
     lecturer_id: str,
     course_id: str,
     session_id: Annotated[str, Query(description="The session to withdraw them from.")],
+    principal: security.Department,
     deps: Deps,
 ) -> LecturerResponse:
     """Grades already submitted are untouched.
