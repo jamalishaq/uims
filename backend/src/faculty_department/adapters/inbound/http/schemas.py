@@ -2,7 +2,15 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from faculty_department.application.views import GradeSubmittedView, ProgramPlacementView
+from faculty_department.application.views import (
+    DepartmentView,
+    FacultyView,
+    GradeSubmittedView,
+    LecturerView,
+    ProgramPlacementView,
+    ProgramView,
+    SessionView,
+)
 
 
 class SubmitGradeRequest(BaseModel):
@@ -60,3 +68,193 @@ class ProgramPlacementResponse(BaseModel):
     @classmethod
     def of(cls, view: ProgramPlacementView) -> "ProgramPlacementResponse":
         return cls(**vars(view))
+
+
+# ---- the academic structure, which had no write path until now ----
+
+
+class CreateFacultyRequest(BaseModel):
+    """A faculty, e.g. the Faculty of Science."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    faculty_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+
+
+class FacultyResponse(BaseModel):
+    """A faculty as this context holds it."""
+
+    faculty_id: str
+    name: str
+    code: str
+
+    @classmethod
+    def of(cls, view: FacultyView) -> "FacultyResponse":
+        return cls(**vars(view))
+
+
+class CreateDepartmentRequest(BaseModel):
+    """A department inside a faculty that already exists.
+
+    ``code`` is the alphabetic code (``CSC``). The four numeric digits a matric number carries
+    are Student Profile's translation of it and are configured there, so nothing here asks.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    department_id: str = Field(min_length=1)
+    faculty_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+
+
+class DepartmentResponse(BaseModel):
+    """A department and the faculty it sits in."""
+
+    department_id: str
+    faculty_id: str
+    name: str
+    code: str
+
+    @classmethod
+    def of(cls, view: DepartmentView) -> "DepartmentResponse":
+        return cls(**vars(view))
+
+
+class CreateProgramRequest(BaseModel):
+    """A program offered by a department that already exists.
+
+    There is no ``is_admitting`` field: a program is created closed, and opening it is a
+    separate decision on a program that exists rather than a side effect of describing one.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    program_id: str = Field(min_length=1)
+    department_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+
+
+class SetProgramAdmissionsRequest(BaseModel):
+    """Open or close a program's admissions window."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    is_admitting: bool
+
+
+class ProgramResponse(BaseModel):
+    """A program, its department, and whether it is taking applications."""
+
+    program_id: str
+    department_id: str
+    name: str
+    code: str
+    is_admitting: bool
+
+    @classmethod
+    def of(cls, view: ProgramView) -> "ProgramResponse":
+        return cls(**vars(view))
+
+
+class ProgramListResponse(BaseModel):
+    """Every program a department offers. An empty list is a normal answer."""
+
+    programs: tuple[ProgramResponse, ...]
+
+
+class PlannedSemesterSchema(BaseModel):
+    """One semester of a planned session."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    semester_id: str = Field(min_length=1)
+    ordinal: int = Field(description="1 for the first semester, 2 for the second.")
+
+
+class PlanSessionRequest(BaseModel):
+    """An academic session, described before it starts.
+
+    ``academic_year`` is the starting year — 2026 for the 2026/2027 session. The label is
+    derived from it, so the two cannot disagree.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=1)
+    academic_year: int
+    semesters: tuple[PlannedSemesterSchema, ...]
+
+
+class SemesterResponse(BaseModel):
+    """One semester of a session. ``ordinal`` is 1 or 2, as the domain holds it."""
+
+    semester_id: str
+    ordinal: int
+
+
+class SessionResponse(BaseModel):
+    """An academic session, its semesters, and whether it has opened."""
+
+    session_id: str
+    academic_year: int
+    label: str
+    status: str
+    is_open: bool
+    semesters: tuple[SemesterResponse, ...]
+
+    @classmethod
+    def of(cls, view: SessionView) -> "SessionResponse":
+        return cls(
+            **(
+                vars(view)
+                | {
+                    "semesters": tuple(
+                        SemesterResponse(**vars(semester)) for semester in view.semesters
+                    )
+                }
+            )
+        )
+
+
+class RegisterLecturerRequest(BaseModel):
+    """A lecturer and the department they belong to. They teach nothing yet."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lecturer_id: str = Field(min_length=1)
+    department_id: str = Field(min_length=1)
+    full_name: str = Field(min_length=1)
+
+
+class CourseAssignmentResponse(BaseModel):
+    """One course a lecturer teaches, in one session."""
+
+    course_id: str
+    session_id: str
+
+
+class LecturerResponse(BaseModel):
+    """A lecturer and what they teach."""
+
+    lecturer_id: str
+    department_id: str
+    full_name: str
+    assignments: tuple[CourseAssignmentResponse, ...]
+
+    @classmethod
+    def of(cls, view: LecturerView) -> "LecturerResponse":
+        return cls(
+            **(
+                vars(view)
+                | {
+                    "assignments": tuple(
+                        CourseAssignmentResponse(**vars(assignment))
+                        for assignment in view.assignments
+                    )
+                }
+            )
+        )

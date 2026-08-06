@@ -44,6 +44,18 @@ from admissions.application.matriculate_applicant import (
     MatriculateApplicant,
     MatriculateApplicantCommand,
 )
+from admissions.application.open_admission_cycle import (
+    OpenAdmissionCycle,
+    OpenAdmissionCycleCommand,
+)
+from admissions.application.publish_alternative_policy import (
+    PublishAlternativePolicy,
+    PublishAlternativePolicyCommand,
+)
+from admissions.application.publish_entry_requirement import (
+    PublishEntryRequirement,
+    PublishEntryRequirementCommand,
+)
 from admissions.application.record_acceptance_fee_paid import (
     AcceptanceFeeRecorded,
     RecordAcceptanceFeePaid,
@@ -57,13 +69,21 @@ from admissions.application.screen_applicant import (
     ScreeningOutcome,
 )
 from admissions.application.submit_application import SubmitApplication, SubmitApplicationCommand
-from admissions.application.views import ApplicantView, UtmeSubjectScoreView
+from admissions.application.views import (
+    AdmissionCycleView,
+    AlternativeProgramPolicyView,
+    ApplicantView,
+    ProgramEntryRequirementView,
+    UtmeSubjectScoreView,
+)
 
 __all__ = [
     "AcceptOffer",
     "AcceptOfferCommand",
     "AcceptanceFeeRecorded",
     "AdmissionCycleNotFoundError",
+    "AdmissionCycleView",
+    "AlternativeProgramPolicyView",
     "ApplicantMatriculated",
     "ApplicantNotFoundError",
     "ApplicantNotQualified",
@@ -82,8 +102,15 @@ __all__ = [
     "OfferDeclined",
     "OfferMade",
     "OfferTakenUp",
+    "OpenAdmissionCycle",
+    "OpenAdmissionCycleCommand",
+    "ProgramEntryRequirementView",
     "ProgramNotAdmittingError",
     "ProgramNotFoundError",
+    "PublishAlternativePolicy",
+    "PublishAlternativePolicyCommand",
+    "PublishEntryRequirement",
+    "PublishEntryRequirementCommand",
     "RecordAcceptanceFeePaid",
     "RecordAcceptanceFeePaidCommand",
     "ScreenApplicant",

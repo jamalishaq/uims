@@ -15,13 +15,18 @@ who can reach this endpoint can submit a grade as any lecturer who is assigned.
 
 from faculty_department.application.errors import (
     ApplicationError,
+    DepartmentNotFoundError,
+    FacultyNotFoundError,
     LecturerNotFoundError,
+    ProgramNotFoundError,
     SessionNotFoundError,
 )
 from faculty_department.domain.errors import (
     FacultyDepartmentError,
     LecturerNotAssignedToCourseError,
     SemesterNotInSessionError,
+    SessionAlreadyClosedError,
+    SessionAlreadyOpenError,
     SessionNotOpenError,
 )
 from faculty_department.ports.errors import (
@@ -35,12 +40,18 @@ from http_api import ExceptionStatuses
 EXCEPTION_STATUSES: ExceptionStatuses = {
     # 403 — the lecturer does not teach that course.
     LecturerNotAssignedToCourseError: 403,
-    # 404 — asked about something that is not there.
+    # 404 — asked about something that is not there. The three structural misses are what a
+    # creation route answers when it names a level above it that nobody has.
     LecturerNotFoundError: 404,
     SessionNotFoundError: 404,
+    FacultyNotFoundError: 404,
+    DepartmentNotFoundError: 404,
+    ProgramNotFoundError: 404,
     AggregateNotFoundError: 404,
     # 409 — the calendar is not where this request assumes.
     SessionNotOpenError: 409,
+    SessionAlreadyOpenError: 409,
+    SessionAlreadyClosedError: 409,
     SemesterNotInSessionError: 409,
     DuplicateAggregateError: 409,
     # 422 — the submission cannot describe a grade.

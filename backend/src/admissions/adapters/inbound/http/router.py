@@ -19,6 +19,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 
 from admissions.adapters.inbound.http.schemas import (
+    AdmissionCycleResponse,
+    AlternativeProgramPolicyResponse,
     ApplicantMatriculatedResponse,
     ApplicantNotQualifiedResponse,
     ApplicantQualifiedResponse,
@@ -28,6 +30,10 @@ from admissions.adapters.inbound.http.schemas import (
     OfferMadeResponse,
     OfferResponse,
     OfferTakenUpResponse,
+    OpenAdmissionCycleRequest,
+    ProgramEntryRequirementResponse,
+    PublishAlternativePolicyRequest,
+    PublishEntryRequirementRequest,
     ScreeningResponse,
     SubmitApplicationRequest,
 )
@@ -42,13 +48,30 @@ from admissions.application.matriculate_applicant import (
     MatriculateApplicant,
     MatriculateApplicantCommand,
 )
+from admissions.application.open_admission_cycle import (
+    OpenAdmissionCycle,
+    OpenAdmissionCycleCommand,
+)
+from admissions.application.publish_alternative_policy import (
+    PublishAlternativePolicy,
+    PublishAlternativePolicyCommand,
+)
+from admissions.application.publish_entry_requirement import (
+    PublishEntryRequirement,
+    PublishEntryRequirementCommand,
+)
 from admissions.application.screen_applicant import (
     ApplicantQualified,
     ScreenApplicant,
     ScreenApplicantCommand,
 )
 from admissions.application.submit_application import SubmitApplication, SubmitApplicationCommand
-from admissions.application.views import ApplicantView
+from admissions.application.views import (
+    AdmissionCycleView,
+    AlternativeProgramPolicyView,
+    ApplicantView,
+    ProgramEntryRequirementView,
+)
 from http_api import dependencies_of, error_responses
 
 STATE_KEY = "admissions"
@@ -66,6 +89,9 @@ class AdmissionsDependencies:
         accept_offer: AcceptOffer,
         decline_offer: DeclineOffer,
         matriculate_applicant: MatriculateApplicant,
+        open_admission_cycle: OpenAdmissionCycle,
+        publish_entry_requirement: PublishEntryRequirement,
+        publish_alternative_policy: PublishAlternativePolicy,
     ) -> None:
         self.submit_application = submit_application
         self.screen_applicant = screen_applicant
@@ -73,6 +99,9 @@ class AdmissionsDependencies:
         self.accept_offer = accept_offer
         self.decline_offer = decline_offer
         self.matriculate_applicant = matriculate_applicant
+        self.open_admission_cycle = open_admission_cycle
+        self.publish_entry_requirement = publish_entry_requirement
+        self.publish_alternative_policy = publish_alternative_policy
 
 
 def _deps(request: Request) -> AdmissionsDependencies:
@@ -206,6 +235,94 @@ async def matriculate_applicant(applicant_id: str, deps: Deps) -> ApplicantMatri
         MatriculateApplicantCommand(applicant_id=applicant_id)
     )
     return ApplicantMatriculatedResponse.of(matriculated)
+
+
+@router.post(
+    "/admission-cycles",
+    status_code=status.HTTP_201_CREATED,
+    response_model=AdmissionCycleResponse,
+    summary="Open a program's intake for a session",
+    responses=error_responses(409, 422, 500, 503),
+)
+async def open_admission_cycle(
+    body: OpenAdmissionCycleRequest, deps: Deps
+) -> AdmissionCycleResponse:
+    """Set the quota the whole offer flow is measured against.
+
+    Set by the **department registrar** for their own programs. Before this route existed a
+    quota could only be created by writing a row into Postgres by hand.
+
+    A second cycle for the same program and session is a 409 rather than an overwrite: opening
+    resets ``offers_made`` to zero, which would hand out places that are already held.
+
+    **Unauthenticated in this phase**, so the departmental scope is not enforced anywhere.
+    """
+    cycle = await deps.open_admission_cycle.execute(
+        OpenAdmissionCycleCommand(
+            program_id=body.program_id, session_id=body.session_id, quota=body.quota
+        )
+    )
+    return AdmissionCycleResponse.of(AdmissionCycleView.of(cycle))
+
+
+@router.post(
+    "/entry-requirements",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ProgramEntryRequirementResponse,
+    summary="Publish a program's entry requirement for a session",
+    responses=error_responses(409, 422, 500, 503),
+)
+async def publish_entry_requirement(
+    body: PublishEntryRequirementRequest, deps: Deps
+) -> ProgramEntryRequirementResponse:
+    """Write down the subject combination screening judges against.
+
+    Set by the **department registrar**: a department knows what its own program needs.
+
+    Republishing is a 409, not an overwrite — a cohort part-way through screening must not be
+    judged against two different rules. Publishing next session's requirement is a different
+    key and leaves this one readable.
+    """
+    requirement = await deps.publish_entry_requirement.execute(
+        PublishEntryRequirementCommand(
+            program_id=body.program_id,
+            session_id=body.session_id,
+            required_subjects=body.required_subjects,
+            one_of_groups=body.one_of_groups,
+        )
+    )
+    return ProgramEntryRequirementResponse.of(ProgramEntryRequirementView.of(requirement))
+
+
+@router.post(
+    "/alternative-policies",
+    status_code=status.HTTP_201_CREATED,
+    response_model=AlternativeProgramPolicyResponse,
+    summary="Publish a program's alternative-program chain for a session",
+    responses=error_responses(409, 422, 500, 503),
+)
+async def publish_alternative_policy(
+    body: PublishAlternativePolicyRequest, deps: Deps
+) -> AlternativeProgramPolicyResponse:
+    """Write down where a program overflows to, in preference order.
+
+    Owned by a **faculty officer** rather than a department registrar, because a chain names
+    other departments' programs and spends *their* quota. That ownership is a decision
+    recorded in CLAUDE.md section 6 and **not enforced here** — there is no authentication,
+    and checking that every program named sits in the writer's faculty is a cross-context read
+    Admissions cannot make today. Both arrive with identity.
+
+    Order is the whole content of the chain: first qualifying program with a place left takes
+    the applicant.
+    """
+    policy = await deps.publish_alternative_policy.execute(
+        PublishAlternativePolicyCommand(
+            program_id=body.program_id,
+            session_id=body.session_id,
+            alternatives=body.alternatives,
+        )
+    )
+    return AlternativeProgramPolicyResponse.of(AlternativeProgramPolicyView.of(policy))
 
 
 __all__ = ["STATE_KEY", "AdmissionsDependencies", "router"]

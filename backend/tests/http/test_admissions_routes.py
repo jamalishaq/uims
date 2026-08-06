@@ -357,3 +357,181 @@ class TestMatriculation:
         response = await client.post(f"{api}/admissions/applicants/app-1/matriculation")
         assert response.status_code == 409
         assert response.json()["error"] == "OfferNotAcceptedError"
+
+
+class TestPolicyWritePaths:
+    """Quota, entry requirement and fallback chain — none of which had a route before.
+
+    Until these existed the only way to configure an admissions cycle was to write rows into
+    Postgres by hand, which meant the offer flow could not be exercised by a client at all.
+    The last test here is the proof: a whole admissions round, configured and run entirely
+    over HTTP.
+    """
+
+    async def test_opening_a_cycle_reports_its_free_places(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        response = await client.post(
+            f"{api}/admissions/admission-cycles",
+            json={"program_id": "prog-csc", "session_id": "sess-2026", "quota": 3},
+        )
+        assert response.status_code == 201, response.text
+        assert response.json() == {
+            "program_id": "prog-csc",
+            "session_id": "sess-2026",
+            "quota": 3,
+            "offers_made": 0,
+            "places_remaining": 3,
+            "is_full": False,
+        }
+
+    async def test_a_zero_quota_cycle_is_legal_and_full(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """A program not admitting this session, said truthfully rather than by absence."""
+        response = await client.post(
+            f"{api}/admissions/admission-cycles",
+            json={"program_id": "prog-csc", "session_id": "sess-2026", "quota": 0},
+        )
+        assert response.status_code == 201
+        assert response.json()["is_full"] is True
+
+    async def test_opening_the_same_cycle_twice_is_a_409(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """Not an overwrite: reopening would reset offers_made and re-sell held places."""
+        body = {"program_id": "prog-csc", "session_id": "sess-2026", "quota": 3}
+        await client.post(f"{api}/admissions/admission-cycles", json=body)
+
+        response = await client.post(f"{api}/admissions/admission-cycles", json=body)
+        assert response.status_code == 409
+
+    async def test_a_negative_quota_never_reaches_a_use_case(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        response = await client.post(
+            f"{api}/admissions/admission-cycles",
+            json={"program_id": "prog-csc", "session_id": "sess-2026", "quota": -1},
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "RequestValidationError"
+
+    async def test_publishing_a_requirement_normalises_and_sorts_subjects(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """Upper-cased by the domain, sorted by the view — a frozenset has no order, and an
+        unstable response body cannot be cached or diffed."""
+        response = await client.post(
+            f"{api}/admissions/entry-requirements",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "required_subjects": ["Physics", "english", "MATHEMATICS"],
+                "one_of_groups": [["biology", "Chemistry"]],
+            },
+        )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["required_subjects"] == ["ENGLISH", "MATHEMATICS", "PHYSICS"]
+        assert body["one_of_groups"] == [["BIOLOGY", "CHEMISTRY"]]
+
+    async def test_a_requirement_nobody_could_satisfy_is_refused(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """Five demands against four subjects is a policy typo, caught when it is written
+        rather than when a cohort is turned away."""
+        response = await client.post(
+            f"{api}/admissions/entry-requirements",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "required_subjects": ["A", "B", "C", "D", "E"],
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "UnsatisfiableRequirementError"
+
+    async def test_overlapping_demands_are_refused(self, client: AsyncClient, api: str) -> None:
+        """One subject counted twice is the double-counting UtmeResult already forbids."""
+        response = await client.post(
+            f"{api}/admissions/entry-requirements",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "required_subjects": ["CHEMISTRY"],
+                "one_of_groups": [["CHEMISTRY", "BIOLOGY"]],
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "OverlappingRequirementError"
+
+    async def test_publishing_a_chain_keeps_its_preference_order(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """Order is the whole content: re-ordering changes who ends up where."""
+        response = await client.post(
+            f"{api}/admissions/alternative-policies",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "alternatives": ["prog-mth", "prog-sta", "prog-phy"],
+            },
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["alternatives"] == ["prog-mth", "prog-sta", "prog-phy"]
+
+    async def test_a_chain_naming_its_own_program_is_refused(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        """The cycle it would retry is the one already found full."""
+        response = await client.post(
+            f"{api}/admissions/alternative-policies",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "alternatives": ["prog-mth", "prog-csc"],
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "SelfReferentialAlternativeError"
+
+    async def test_a_chain_naming_a_program_twice_is_refused(
+        self, client: AsyncClient, api: str
+    ) -> None:
+        response = await client.post(
+            f"{api}/admissions/alternative-policies",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "alternatives": ["prog-mth", "prog-mth"],
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "DuplicateAlternativeError"
+
+    async def test_an_admissions_round_configured_and_run_entirely_over_http(
+        self, client: AsyncClient, api: str, repos
+    ) -> None:
+        """The phase in one test: no repository is touched except to seed Faculty & Dept,
+        which has its own creation routes in this same change."""
+        await _seed_program(repos)
+        await client.post(
+            f"{api}/admissions/entry-requirements",
+            json={
+                "program_id": "prog-csc",
+                "session_id": "sess-2026",
+                "required_subjects": ["ENGLISH", "MATHEMATICS"],
+            },
+        )
+        await client.post(
+            f"{api}/admissions/admission-cycles",
+            json={"program_id": "prog-csc", "session_id": "sess-2026", "quota": 1},
+        )
+
+        await client.post(f"{api}/admissions/applications", json=APPLICATION)
+        await client.post(f"{api}/admissions/applicants/app-1/screening")
+        offer = await client.post(f"{api}/admissions/applicants/app-1/offer")
+
+        assert offer.status_code == 200, offer.text
+        assert offer.json()["outcome"] == "offer_made"
+        assert offer.json()["is_alternative"] is False

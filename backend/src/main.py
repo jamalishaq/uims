@@ -64,6 +64,9 @@ from admissions.application.accept_offer import AcceptOffer
 from admissions.application.decline_offer import DeclineOffer
 from admissions.application.make_offer_to_applicant import MakeOfferToApplicant
 from admissions.application.matriculate_applicant import MatriculateApplicant
+from admissions.application.open_admission_cycle import OpenAdmissionCycle
+from admissions.application.publish_alternative_policy import PublishAlternativePolicy
+from admissions.application.publish_entry_requirement import PublishEntryRequirement
 from admissions.application.record_acceptance_fee_paid import RecordAcceptanceFeePaid
 from admissions.application.screen_applicant import ScreenApplicant
 from admissions.application.submit_application import SubmitApplication
@@ -124,7 +127,16 @@ from faculty_department.adapters.outbound.postgres import (
     PostgresProgramRepository,
     PostgresSessionRepository,
 )
+from faculty_department.application.create_structure import (
+    CreateDepartment,
+    CreateFaculty,
+    CreateProgram,
+    SetProgramAdmissions,
+)
+from faculty_department.application.list_department_programs import ListDepartmentPrograms
+from faculty_department.application.manage_calendar import OpenSession, PlanSession
 from faculty_department.application.read_program_placement import ReadProgramPlacement
+from faculty_department.application.register_lecturer import RegisterLecturer
 from faculty_department.application.submit_grade import SubmitGrade
 from http_api import install_envelope_for_framework_errors, install_exception_handlers
 from persistence import engine_for
@@ -453,16 +465,18 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
 
     # -- faculty & department
     #
-    # The faculty repository is not built, and its absence is a finding rather than an
-    # oversight: no use case in the system reads a faculty. Faculties exist as an aggregate and
-    # a table with nothing above them, which is the same gap that leaves this context with two
-    # routes — see its router's docstring.
+    # The faculty repository is built now, and what changed is that something reads a faculty:
+    # ``CreateDepartment`` checks the one it is given exists. Its absence used to be recorded
+    # here as a finding — "no use case in the system reads a faculty" — and that was the same
+    # gap that left this context with two routes.
+    faculties = repositories.faculties()
     departments = repositories.departments()
     programs = repositories.programs()
     lecturers = repositories.lecturers()
     sessions = repositories.sessions()
 
-    submit_grade = SubmitGrade(lecturers, sessions, FacultyDepartmentEventBus(bus))
+    faculty_events = FacultyDepartmentEventBus(bus)
+    submit_grade = SubmitGrade(lecturers, sessions, faculty_events)
     read_program_placement = ReadProgramPlacement(programs, departments, sessions)
 
     # -- course catalog
@@ -576,7 +590,16 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
         app.state,
         faculty_department_http.STATE_KEY,
         faculty_department_http.FacultyDepartmentDependencies(
-            submit_grade=submit_grade, read_program_placement=read_program_placement
+            submit_grade=submit_grade,
+            read_program_placement=read_program_placement,
+            create_faculty=CreateFaculty(faculties),
+            create_department=CreateDepartment(departments, faculties),
+            create_program=CreateProgram(programs, departments),
+            set_program_admissions=SetProgramAdmissions(programs),
+            list_department_programs=ListDepartmentPrograms(programs),
+            plan_session=PlanSession(sessions),
+            open_session=OpenSession(sessions, faculty_events),
+            register_lecturer=RegisterLecturer(lecturers, departments),
         ),
     )
     setattr(
@@ -631,6 +654,9 @@ def build(app: FastAPI, repositories: Any, settings: Settings) -> None:
             accept_offer=accept_offer,
             decline_offer=decline_offer,
             matriculate_applicant=matriculate_applicant,
+            open_admission_cycle=OpenAdmissionCycle(cycles),
+            publish_entry_requirement=PublishEntryRequirement(requirements),
+            publish_alternative_policy=PublishAlternativePolicy(policies),
         ),
     )
     setattr(

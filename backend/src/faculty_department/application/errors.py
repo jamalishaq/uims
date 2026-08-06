@@ -18,3 +18,25 @@ class LecturerNotFoundError(ApplicationError):
 
 class SessionNotFoundError(ApplicationError):
     """No academic session is stored under the given identifier."""
+
+
+class FacultyNotFoundError(ApplicationError):
+    """No faculty is stored under the given identifier.
+
+    Raised when a department names a faculty nobody has. Creating it anyway would leave the
+    structure with a dangling reference that only shows up much later, as a program whose
+    placement cannot be read — and ``ReadProgramPlacement`` answers ``None`` for that, so the
+    failure would surface as an applicant being told their program does not exist.
+    """
+
+
+class DepartmentNotFoundError(ApplicationError):
+    """No department is stored under the given identifier.
+
+    Raised when a program or a lecturer names a department nobody has, for
+    :class:`FacultyNotFoundError`'s reason.
+    """
+
+
+class ProgramNotFoundError(ApplicationError):
+    """No program is stored under the given identifier."""
