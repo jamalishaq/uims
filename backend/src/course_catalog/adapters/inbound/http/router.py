@@ -14,6 +14,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
+import security
 from course_catalog.adapters.inbound.http.schemas import (
     AmendCourseRequest,
     CourseListResponse,
@@ -86,9 +87,11 @@ router = APIRouter(prefix="/course-catalog", tags=["course-catalog"])
     status_code=status.HTTP_201_CREATED,
     response_model=CourseResponse,
     summary="Register a course",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
-async def register_course(body: RegisterCourseRequest, deps: Deps) -> CourseResponse:
+async def register_course(
+    body: RegisterCourseRequest, principal: security.Department, deps: Deps
+) -> CourseResponse:
     course = await deps.register_course.execute(RegisterCourseCommand(**body.model_dump()))
     return CourseResponse.of(CourseView.of(course))
 
@@ -97,9 +100,11 @@ async def register_course(body: RegisterCourseRequest, deps: Deps) -> CourseResp
     "/courses/{course_id}",
     response_model=CourseResponse,
     summary="Read a course",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 404, 422, 500, 503),
 )
-async def read_course(course_id: str, deps: Deps) -> CourseResponse:
+async def read_course(
+    course_id: str, principal: security.Authenticated, deps: Deps
+) -> CourseResponse:
     course = await deps.read_course.execute(ReadCourseCommand(course_id=course_id))
     return CourseResponse.of(CourseView.of(course))
 
@@ -108,9 +113,14 @@ async def read_course(course_id: str, deps: Deps) -> CourseResponse:
     "/courses/{course_id}",
     response_model=CourseResponse,
     summary="Amend a course",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def amend_course(course_id: str, body: AmendCourseRequest, deps: Deps) -> CourseResponse:
+async def amend_course(
+    course_id: str,
+    body: AmendCourseRequest,
+    principal: security.Department,
+    deps: Deps,
+) -> CourseResponse:
     course = await deps.amend_course.execute(
         AmendCourseCommand(course_id=course_id, **body.model_dump())
     )
@@ -121,9 +131,11 @@ async def amend_course(course_id: str, body: AmendCourseRequest, deps: Deps) -> 
     "/courses/{course_id}/retirement",
     response_model=CourseResponse,
     summary="Retire a course",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def retire_course(course_id: str, deps: Deps) -> CourseResponse:
+async def retire_course(
+    course_id: str, principal: security.Department, deps: Deps
+) -> CourseResponse:
     """Retire a course. Retired courses stay readable — transcripts refer to them forever."""
     course = await deps.retire_course.execute(RetireCourseCommand(course_id=course_id))
     return CourseResponse.of(CourseView.of(course))
@@ -133,9 +145,11 @@ async def retire_course(course_id: str, deps: Deps) -> CourseResponse:
     "/courses/{course_id}/retirement",
     response_model=CourseResponse,
     summary="Reinstate a retired course",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def reinstate_course(course_id: str, deps: Deps) -> CourseResponse:
+async def reinstate_course(
+    course_id: str, principal: security.Department, deps: Deps
+) -> CourseResponse:
     course = await deps.reinstate_course.execute(ReinstateCourseCommand(course_id=course_id))
     return CourseResponse.of(CourseView.of(course))
 
@@ -144,10 +158,11 @@ async def reinstate_course(course_id: str, deps: Deps) -> CourseResponse:
     "/departments/{department_id}/courses",
     response_model=CourseListResponse,
     summary="List a department's courses",
-    responses=error_responses(422, 500, 503),
+    responses=error_responses(401, 422, 500, 503),
 )
 async def list_department_courses(
     department_id: str,
+    principal: security.Authenticated,
     deps: Deps,
     include_retired: Annotated[bool, Query(description="Include retired courses.")] = False,
 ) -> CourseListResponse:
@@ -164,9 +179,11 @@ async def list_department_courses(
     "/courses/{course_id}/prerequisites/{prerequisite_id}",
     response_model=CourseResponse,
     summary="Add a prerequisite",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def add_prerequisite(course_id: str, prerequisite_id: str, deps: Deps) -> CourseResponse:
+async def add_prerequisite(
+    course_id: str, prerequisite_id: str, principal: security.Department, deps: Deps
+) -> CourseResponse:
     """``PUT`` because it is idempotent in intent; a repeat is a 409 from the domain."""
     course = await deps.add_prerequisite.execute(
         AddPrerequisiteCommand(course_id=course_id, prerequisite_id=prerequisite_id)
@@ -178,9 +195,14 @@ async def add_prerequisite(course_id: str, prerequisite_id: str, deps: Deps) -> 
     "/courses/{course_id}/prerequisites/{prerequisite_id}",
     response_model=CourseResponse,
     summary="Remove a prerequisite",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def remove_prerequisite(course_id: str, prerequisite_id: str, deps: Deps) -> CourseResponse:
+async def remove_prerequisite(
+    course_id: str,
+    prerequisite_id: str,
+    principal: security.Department,
+    deps: Deps,
+) -> CourseResponse:
     course = await deps.remove_prerequisite.execute(
         RemovePrerequisiteCommand(course_id=course_id, prerequisite_id=prerequisite_id)
     )
@@ -191,9 +213,11 @@ async def remove_prerequisite(course_id: str, prerequisite_id: str, deps: Deps) 
     "/courses/{course_id}/prerequisite-chain",
     response_model=PrerequisiteChainResponse,
     summary="Read a course's full prerequisite chain",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 404, 422, 500, 503),
 )
-async def read_prerequisite_chain(course_id: str, deps: Deps) -> PrerequisiteChainResponse:
+async def read_prerequisite_chain(
+    course_id: str, principal: security.Authenticated, deps: Deps
+) -> PrerequisiteChainResponse:
     """Every course that must be passed first, transitively — not just the direct ones."""
     chain = await deps.read_prerequisite_chain.execute(
         ReadPrerequisiteChainCommand(course_id=course_id)

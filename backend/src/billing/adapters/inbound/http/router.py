@@ -24,6 +24,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
 
+import security
 from billing.adapters.inbound.http.schemas import (
     AccountStatementResponse,
     ApplySessionFeesRequest,
@@ -96,10 +97,25 @@ router = APIRouter(prefix="/billing", tags=["billing"])
     "/accounts/{party_id}",
     response_model=AccountStatementResponse,
     summary="Read a party's ledger",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
-async def read_account(party_id: str, deps: Deps) -> AccountStatementResponse:
-    """The whole ledger. ``party_id`` is an applicant id or a matric number — either resolves."""
+async def read_account(
+    party_id: str, principal: security.Authenticated, deps: Deps
+) -> AccountStatementResponse:
+    """The whole ledger. ``party_id`` is an applicant id or a matric number — either resolves.
+
+    A student reads their own ledger; the bursary reads anybody's. ``require_owner`` matches
+    the token's subject *and* its login id, which is what lets a student quote the matric number
+    printed on their ID card rather than the ``student_id`` only this system uses.
+
+    **One case is refused that arguably should not be**, and it follows from the sentence above:
+    an account still keyed by an *applicant id* — one opened at ``OfferAccepted`` and not yet
+    linked at matriculation — is unreachable by the person it belongs to, because a token has
+    never heard of an applicant id. It is reachable by the bursary, and it stops being a problem
+    the moment ``LinkStudentAccount`` runs. Fixing it properly needs the applicant identity
+    ``auth.md`` records as open.
+    """
+    principal.require_owner(party_id)
     statement = await deps.read_account.execute(party_id)
     return AccountStatementResponse.of(AccountStatementView.of(statement))
 
@@ -108,10 +124,13 @@ async def read_account(party_id: str, deps: Deps) -> AccountStatementResponse:
     "/accounts/{party_id}/student-link",
     response_model=StudentAccountLinkedResponse,
     summary="Link a matric number to an existing account",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
 async def link_student_account(
-    party_id: str, body: LinkStudentAccountRequest, deps: Deps
+    party_id: str,
+    body: LinkStudentAccountRequest,
+    principal: security.University,
+    deps: Deps,
 ) -> StudentAccountLinkedResponse:
     """Give the ledger opened at acceptance the matric number it now also answers to.
 
@@ -134,10 +153,13 @@ async def link_student_account(
     status_code=status.HTTP_201_CREATED,
     response_model=PaymentRecordedResponse,
     summary="Record a payment against a ledger (bursary override)",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def record_payment(
-    party_id: str, body: RecordPaymentRequest, deps: Deps
+    party_id: str,
+    body: RecordPaymentRequest,
+    principal: security.University,
+    deps: Deps,
 ) -> PaymentRecordedResponse:
     """Write down money that arrived by some route other than the gateway.
 
@@ -163,10 +185,20 @@ async def record_payment(
     status_code=status.HTTP_201_CREATED,
     response_model=PaymentInitiatedResponse,
     summary="Open a checkout",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def initiate_payment(body: InitiatePaymentRequest, deps: Deps) -> PaymentInitiatedResponse:
-    """Open an intent against a party's ledger, to be confirmed by the gateway's webhook."""
+async def initiate_payment(
+    body: InitiatePaymentRequest, principal: security.Authenticated, deps: Deps
+) -> PaymentInitiatedResponse:
+    """Open an intent against a party's ledger, to be confirmed by the gateway's webhook.
+
+    Checked against the ``party_id`` in the body, so nobody opens an intent against somebody
+    else's ledger. That matters less than it looks — the party credited on confirmation is read
+    off the *intent* and never off the webhook payload, so a mis-aimed intent cannot move money
+    to the wrong account — but an unauthenticated caller could otherwise fill another student's
+    ledger with intents and the reconciliation sweep with noise.
+    """
+    principal.require_owner(body.party_id)
     initiated = await deps.initiate_payment.execute(
         InitiatePaymentCommand(
             party_id=body.party_id,
@@ -211,10 +243,10 @@ async def paystack_webhook(request: Request, deps: Deps) -> WebhookAcceptedRespo
     "/session-fees",
     response_model=SessionFeesAppliedResponse,
     summary="Apply a session's fee schedule to every active account",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def apply_session_fees(
-    body: ApplySessionFeesRequest, deps: Deps
+    body: ApplySessionFeesRequest, principal: security.University, deps: Deps
 ) -> SessionFeesAppliedResponse:
     """Run the batch by hand.
 
@@ -236,10 +268,10 @@ async def apply_session_fees(
     "/reconciliations",
     response_model=ReconciliationSweptResponse,
     summary="Sweep open payment intents against the gateway",
-    responses=error_responses(404, 409, 422, 500, 502, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 502, 503),
 )
 async def reconcile_payment_intents(
-    body: ReconcileRequest, deps: Deps
+    body: ReconcileRequest, principal: security.University, deps: Deps
 ) -> ReconciliationSweptResponse:
     """Verify every expired intent with the gateway before writing any of them off.
 

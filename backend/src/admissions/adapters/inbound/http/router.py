@@ -12,12 +12,39 @@ those two flows, so a registrar cannot turn down somebody the rules would have a
 
 **Accepting and declining are the applicant's own acts**, which is why neither route names an
 actor. ``decline()`` is terminal, and an offer let go by the wrong hand cannot be given back.
+
+---
+
+**Authorization, and the two places it is weaker than it looks.** Both are recorded in
+``auth.md`` rather than left to be discovered.
+
+*One route is public*: ``POST /applications``. Somebody who has never had an account applies
+through it, and requiring a token would be a deadlock — there is nobody to issue one to yet.
+Everything else here needs one.
+
+*Accepting and declining are guarded as ``department``*, which contradicts the paragraph above
+and is the lesser of two wrongs. Section 6's confirmed actor list gives the department registrar
+screening, the offer decision and matriculation, and says nothing about recording an applicant's
+answer — because there is no applicant identity in the confirmed set. The alternative was
+leaving a route that cancels somebody's admission open to anonymous callers. A registrar
+recording the answer is the smaller invention, and **whether applicants get credentials of their
+own is open**.
+
+*The program-keyed routes carry a role gate and no scope check.* Quotas, entry requirements,
+screening, offers and the applicant lists are all keyed by ``program_id``, and checking that a
+particular department registrar may act on a particular programme means resolving programme →
+department. **This context cannot do that**: an ``Applicant`` carries programmes and never a
+department, and there is no port into Faculty & Department that would answer it. Adding one is a
+new cross-context dependency, which section 6 says to escalate rather than invent. So the honest
+statement is that *a department registrar can currently act on another department's programmes*,
+and the fix is a design decision rather than a missing line.
 """
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+import security
 from admissions.adapters.inbound.http.schemas import (
     AdmissionCycleResponse,
     AlternativeProgramPolicyResponse,
@@ -167,9 +194,11 @@ async def submit_application(body: SubmitApplicationRequest, deps: Deps) -> Appl
     "/applicants/{applicant_id}/screening",
     response_model=ScreeningResponse,
     summary="Screen an applicant against their program's entry requirement",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def screen_applicant(applicant_id: str, deps: Deps) -> ScreeningResponse:
+async def screen_applicant(
+    applicant_id: str, principal: security.Department, deps: Deps
+) -> ScreeningResponse:
     """Screen, and say so either way.
 
     Failing to qualify is a decision about a candidate, not a bad request — so both answers
@@ -185,9 +214,11 @@ async def screen_applicant(applicant_id: str, deps: Deps) -> ScreeningResponse:
     "/applicants/{applicant_id}/offer",
     response_model=OfferResponse,
     summary="Decide an applicant's offer, falling back to alternative programs",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def make_offer_to_applicant(applicant_id: str, deps: Deps) -> OfferResponse:
+async def make_offer_to_applicant(
+    applicant_id: str, principal: security.Department, deps: Deps
+) -> OfferResponse:
     """Try the applied program, then each qualifying alternative in preference order.
 
     A full quota never reaches this route as an error: it is a normal outcome the use case
@@ -207,9 +238,11 @@ async def make_offer_to_applicant(applicant_id: str, deps: Deps) -> OfferRespons
     status_code=status.HTTP_201_CREATED,
     response_model=OfferTakenUpResponse,
     summary="Accept an offer",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def accept_offer(applicant_id: str, deps: Deps) -> OfferTakenUpResponse:
+async def accept_offer(
+    applicant_id: str, principal: security.Department, deps: Deps
+) -> OfferTakenUpResponse:
     """Take up the offered place. This is what opens the applicant's ledger.
 
     201 rather than 200: acceptance creates something that did not exist before — an account
@@ -226,9 +259,11 @@ async def accept_offer(applicant_id: str, deps: Deps) -> OfferTakenUpResponse:
     "/applicants/{applicant_id}/declination",
     response_model=OfferDeclinedResponse,
     summary="Decline an offer, returning the place to the quota",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def decline_offer(applicant_id: str, deps: Deps) -> OfferDeclinedResponse:
+async def decline_offer(
+    applicant_id: str, principal: security.Department, deps: Deps
+) -> OfferDeclinedResponse:
     """Turn the place down. Terminal for the applicant, and the cycle gets the place back.
 
     200 rather than 201: nothing is created. What changes is a count on a cycle that already
@@ -246,9 +281,11 @@ async def decline_offer(applicant_id: str, deps: Deps) -> OfferDeclinedResponse:
     status_code=status.HTTP_201_CREATED,
     response_model=ApplicantMatriculatedResponse,
     summary="Matriculate an accepted, fee-cleared applicant",
-    responses=error_responses(404, 409, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 409, 422, 500, 503),
 )
-async def matriculate_applicant(applicant_id: str, deps: Deps) -> ApplicantMatriculatedResponse:
+async def matriculate_applicant(
+    applicant_id: str, principal: security.Department, deps: Deps
+) -> ApplicantMatriculatedResponse:
     """Turn the applicant into a student. Human-triggered, never automatic on payment.
 
     201, because a student now exists in Student Profile with a matric number issued.
@@ -268,10 +305,10 @@ async def matriculate_applicant(applicant_id: str, deps: Deps) -> ApplicantMatri
     status_code=status.HTTP_201_CREATED,
     response_model=AdmissionCycleResponse,
     summary="Open a program's intake for a session",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
 async def open_admission_cycle(
-    body: OpenAdmissionCycleRequest, deps: Deps
+    body: OpenAdmissionCycleRequest, principal: security.Department, deps: Deps
 ) -> AdmissionCycleResponse:
     """Set the quota the whole offer flow is measured against.
 
@@ -296,10 +333,10 @@ async def open_admission_cycle(
     status_code=status.HTTP_201_CREATED,
     response_model=ProgramEntryRequirementResponse,
     summary="Publish a program's entry requirement for a session",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
 async def publish_entry_requirement(
-    body: PublishEntryRequirementRequest, deps: Deps
+    body: PublishEntryRequirementRequest, principal: security.Department, deps: Deps
 ) -> ProgramEntryRequirementResponse:
     """Write down the subject combination screening judges against.
 
@@ -325,10 +362,10 @@ async def publish_entry_requirement(
     status_code=status.HTTP_201_CREATED,
     response_model=AlternativeProgramPolicyResponse,
     summary="Publish a program's alternative-program chain for a session",
-    responses=error_responses(409, 422, 500, 503),
+    responses=error_responses(401, 403, 409, 422, 500, 503),
 )
 async def publish_alternative_policy(
-    body: PublishAlternativePolicyRequest, deps: Deps
+    body: PublishAlternativePolicyRequest, principal: security.Faculty, deps: Deps
 ) -> AlternativeProgramPolicyResponse:
     """Write down where a program overflows to, in preference order.
 
@@ -360,10 +397,10 @@ SessionQuery = Annotated[str, Query(description="The session the question is ask
     "/programs/{program_id}/admissions-summary",
     response_model=ProgramAdmissionsSummaryResponse,
     summary="A program's quota and the state of everyone who applied to it",
-    responses=error_responses(422, 500, 503),
+    responses=error_responses(401, 403, 422, 500, 503),
 )
 async def summarise_program_admissions(
-    program_id: str, session_id: SessionQuery, deps: Deps
+    program_id: str, session_id: SessionQuery, principal: security.Staff, deps: Deps
 ) -> ProgramAdmissionsSummaryResponse:
     """The registrar's dashboard for one program.
 
@@ -386,11 +423,12 @@ async def summarise_program_admissions(
     "/programs/{program_id}/applicants",
     response_model=ApplicantListResponse,
     summary="The applicants for a program, optionally by status",
-    responses=error_responses(422, 500, 503),
+    responses=error_responses(401, 403, 422, 500, 503),
 )
 async def list_program_applicants(
     program_id: str,
     session_id: SessionQuery,
+    principal: security.Staff,
     deps: Deps,
     status_filter: Annotated[
         str | None,
@@ -423,10 +461,10 @@ async def list_program_applicants(
     "/programs/{program_id}/admission-cycle",
     response_model=AdmissionCycleResponse,
     summary="Read a program's intake for a session",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def read_admission_cycle(
-    program_id: str, session_id: SessionQuery, deps: Deps
+    program_id: str, session_id: SessionQuery, principal: security.Staff, deps: Deps
 ) -> AdmissionCycleResponse:
     """Quota, places claimed and places left, as the aggregate derives them."""
     cycle = await deps.read_admission_cycle.find(program_id, session_id)
@@ -442,10 +480,10 @@ async def read_admission_cycle(
     "/programs/{program_id}/entry-requirement",
     response_model=ProgramEntryRequirementResponse,
     summary="Read a program's entry requirement for a session",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def read_entry_requirement(
-    program_id: str, session_id: SessionQuery, deps: Deps
+    program_id: str, session_id: SessionQuery, principal: security.Authenticated, deps: Deps
 ) -> ProgramEntryRequirementResponse:
     """What screening will judge against. A 404 means nobody has published one."""
     requirement = await deps.read_entry_requirement.find(program_id, session_id)
@@ -461,10 +499,10 @@ async def read_entry_requirement(
     "/programs/{program_id}/alternative-policy",
     response_model=AlternativeProgramPolicyResponse,
     summary="Read a program's alternative-program chain for a session",
-    responses=error_responses(404, 422, 500, 503),
+    responses=error_responses(401, 403, 404, 422, 500, 503),
 )
 async def read_alternative_policy(
-    program_id: str, session_id: SessionQuery, deps: Deps
+    program_id: str, session_id: SessionQuery, principal: security.Staff, deps: Deps
 ) -> AlternativeProgramPolicyResponse:
     """Where this program overflows to, in the order the offer flow will walk.
 

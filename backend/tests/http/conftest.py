@@ -25,6 +25,7 @@ from httpx import ASGITransport, AsyncClient
 from tests.conftest import Adapters
 
 import main
+import security
 
 WEBHOOK_SECRET = "sk_test_not_a_real_key"
 """The same fixture secret ``tests/billing/conftest.py`` uses, for the same reason.
@@ -106,9 +107,107 @@ def app(repos: Repositories, settings: main.Settings):
     return application
 
 
+def access_token(
+    app,
+    role: security.Role,
+    subject: str = "UNI-LASU",
+    login_id: str | None = None,
+    scope_id: str | None = None,
+) -> str:
+    """A signed access token for a principal, minted straight from the app's own codec.
+
+    Deliberately *not* obtained by seeding a credential and calling ``POST /auth/login``. The
+    login flow has its own test module; making every other suite go through it would couple
+    forty route tests to the password path, so that a change to scrypt parameters or to the
+    login response shape would fail tests about admissions and billing.
+
+    What this shares with the real thing is the part that matters: the same ``TokenCodec``
+    instance the guards verify against, off ``app.state``. A token minted here is
+    indistinguishable from one a login issued, because it *is* one.
+    """
+    return security.codec_of(_RequestLike(app)).issue_access(
+        security.Principal(
+            subject=subject,
+            login_id=login_id or subject,
+            role=role,
+            scope_kind=security.ScopeKind(role.value),
+            scope_id=scope_id or subject,
+        )
+    )
+
+
+class _RequestLike:
+    """The one attribute ``codec_of`` reads. A whole ``Request`` would need a live scope."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+
+@pytest.fixture
+def token(app):
+    """``token(role, subject=..., login_id=..., scope_id=...)`` for a test that needs one."""
+
+    def mint(role: security.Role, **who: str) -> str:
+        return access_token(app, role, **who)
+
+    return mint
+
+
+@pytest.fixture
+def headers(token):
+    """``headers(role, ...)`` — the ``Authorization`` header a guarded route wants."""
+
+    def build(role: security.Role, **who: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token(role, **who)}"}
+
+    return build
+
+
+@pytest.fixture
+def as_lecturer(headers):
+    """Headers for a named lecturer.
+
+    Grade submission is the one route with no university fallback — see ``security.Lecturer``
+    on why a university token admitted there would reach a domain check it could never satisfy
+    — so the suites that submit grades have to say which lecturer is submitting. That is the
+    guard working: the token names the lecturer, and the domain then decides whether that
+    lecturer teaches the course.
+    """
+
+    def build(lecturer_id: str) -> dict[str, str]:
+        return headers(security.Role.LECTURER, subject=lecturer_id)
+
+    return build
+
+
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
-    """An HTTP client speaking to the app in-process, with no socket and no server."""
+    """An HTTP client speaking to the app in-process, **authenticated as the university**.
+
+    Every route in this system is now guarded, and the suites that use this fixture are about
+    what the routes *do* — that a quota is enforced, that a refusal is a 200 with an outcome,
+    that a matric number is issued. Making each of them mint a token first would add a line of
+    ceremony to forty tests to re-test the same guard forty times.
+
+    University-scoped because that is the principal every scope check passes, so these tests
+    exercise the route rather than the scope. **The guards themselves are tested separately**,
+    in ``test_authorization.py``, which is where a wrong role or a wrong scope belongs — and
+    which uses :func:`anonymous_client` and :func:`headers` to say so explicitly.
+
+    The consequence worth stating: a route that lost its guard entirely would still pass every
+    test in the other modules. That is what ``test_every_route_is_guarded`` exists for.
+    """
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://ums.test",
+        headers={"Authorization": f"Bearer {access_token(app, security.Role.UNIVERSITY)}"},
+    ) as http_client:
+        yield http_client
+
+
+@pytest_asyncio.fixture
+async def anonymous_client(app) -> AsyncIterator[AsyncClient]:
+    """A client with no token at all, for the routes that must work without one."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://ums.test"
     ) as http_client:

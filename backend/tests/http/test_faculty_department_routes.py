@@ -73,7 +73,7 @@ async def _seed_lecturer(repos, *, assigned_to: str | None = "csc101") -> None:
 
 class TestSubmittingAGrade:
     async def test_an_assigned_lecturer_may_submit(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         await _seed_calendar(repos)
         await _seed_lecturer(repos)
@@ -89,6 +89,7 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("lec-1"),
         )
         assert response.status_code == 201, response.text
         assert response.json() == {
@@ -99,7 +100,7 @@ class TestSubmittingAGrade:
         }
 
     async def test_a_submitted_grade_reaches_academic_records_synchronously(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """The whole event path, end to end, through one HTTP call.
 
@@ -123,6 +124,7 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("lec-1"),
         )
 
         record = await client.get(f"{api}/academic-records/records/stu-1")
@@ -133,7 +135,7 @@ class TestSubmittingAGrade:
         assert body["grades"][0]["letter"] == "A"
 
     async def test_a_grade_for_a_course_the_catalog_does_not_know_is_refused(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """And the refusal travels back out through the submitting context.
 
@@ -155,12 +157,13 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("lec-1"),
         )
         assert response.status_code == 409
         assert response.json()["error"] == "CourseCreditsUnavailableError"
 
     async def test_a_lecturer_who_does_not_teach_the_course_is_forbidden(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         """The one 403 in the system: the request is understood and the authority is missing."""
         await _seed_calendar(repos)
@@ -176,12 +179,13 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("lec-1"),
         )
         assert response.status_code == 403
         assert response.json()["error"] == "LecturerNotAssignedToCourseError"
 
     async def test_a_closed_session_is_a_conflict(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         await _seed_calendar(repos, open_session=False)
         await _seed_lecturer(repos)
@@ -196,11 +200,14 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("lec-1"),
         )
         assert response.status_code == 409
         assert response.json()["error"] == "SessionNotOpenError"
 
-    async def test_an_unknown_lecturer_is_a_404(self, client: AsyncClient, api: str, repos) -> None:
+    async def test_an_unknown_lecturer_is_a_404(
+        self, client: AsyncClient, api: str, as_lecturer, repos
+    ) -> None:
         await _seed_calendar(repos)
         response = await client.post(
             f"{api}/faculty-department/grade-submissions",
@@ -212,11 +219,12 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 78,
             },
+            headers=as_lecturer("nobody"),
         )
         assert response.status_code == 404
 
     async def test_a_score_outside_the_scale_never_reaches_a_use_case(
-        self, client: AsyncClient, api: str, repos
+        self, client: AsyncClient, api: str, as_lecturer, repos
     ) -> None:
         response = await client.post(
             f"{api}/faculty-department/grade-submissions",
@@ -228,6 +236,7 @@ class TestSubmittingAGrade:
                 "semester_id": "sem-1",
                 "score": 101,
             },
+            headers=as_lecturer("lec-1"),
         )
         assert response.status_code == 422
         assert response.json()["error"] == "RequestValidationError"

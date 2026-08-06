@@ -91,6 +91,16 @@ class ScopeKind(Enum):
     STUDENT = "student"
 
 
+_ADMINISTRATIVE_ROLES = frozenset({Role.UNIVERSITY, Role.FACULTY, Role.DEPARTMENT})
+"""The three roles that administer somebody other than themselves.
+
+A lecturer and a student are scoped to themselves and nothing else; these three are scoped to a
+unit full of other people. The distinction is what :meth:`Principal.require_owner` turns on, and
+it is a set here rather than a condition at each call site so that adding a role forces the
+question to be answered once.
+"""
+
+
 # ---- what goes wrong ----------------------------------------------------------------------
 
 
@@ -193,6 +203,42 @@ class Principal:
         scope kind, which for a student and a lecturer is themselves.
         """
         self.require_scope(self.scope_kind, unit_id)
+
+    @property
+    def is_administrative(self) -> bool:
+        """Whether this principal administers something rather than being administered.
+
+        University, faculty and department. Used by the routes that answer differently for a
+        person reading their own things and an officer reading anybody's, so the branch reads as
+        one question rather than a list of roles restated at each call site.
+        """
+        return self.role in _ADMINISTRATIVE_ROLES
+
+    def require_owner(self, *identifiers: str | None) -> None:
+        """Raise unless one of ``identifiers`` names this principal, by *either* of its names.
+
+        A principal has two identifiers that a URL might carry — the ``subject`` its context
+        minted and the ``login_id`` it types — and which of them a route holds depends on the
+        route. Billing keys an account by a matric number *or* an applicant id; Student Profile
+        looks a student up by ``student_id`` *or* matric number. A check written against
+        ``subject`` alone would refuse a student reading their own ledger by the only number
+        printed on their ID card.
+
+        An administrative principal passes unconditionally, on the same argument as
+        :meth:`covers` — a university token reaches everything, and a faculty or department
+        officer reading a student's ledger is doing their job.
+
+        ``None`` entries are ignored, so a route can pass an optional query parameter straight
+        in without deciding first whether it was supplied.
+        """
+        if self.is_administrative:
+            return
+        candidates = {value for value in identifiers if value}
+        if candidates & {self.subject, self.login_id}:
+            return
+        raise ForbiddenError(
+            f"{self.role.value} {self.login_id!r} may only act on their own records"
+        )
 
 
 # ---- the codec ----------------------------------------------------------------------------
